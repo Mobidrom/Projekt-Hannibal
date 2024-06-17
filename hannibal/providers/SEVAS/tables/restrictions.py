@@ -66,9 +66,16 @@ DEST_ONLY_MODIFIABLE = [
 ]
 
 
-def SEVASRestrFactory(items: List[Tuple[Any, Any]]):
-    kwargs = {k: v for k, v in items if not k.startswith("vz_")}
-    vz = {RestrVZ(k): str_to_bool(v) for k, v in items if k.startswith("vz_")}
+def SEVASRestrFactory(items: List[Tuple[str, Any]]):
+    kwargs = {}
+    vz = {}
+    for k, v in items:
+        if k.startswith("vz_"):
+            vz[RestrVZ(k)] = str_to_bool(v)
+        else:
+            if isinstance(v, str) and len(v) == 0:
+                v = None  # cast empty string to None
+            kwargs[k] = v
 
     return SEVASRestrRecord(**kwargs, vz=vz)
 
@@ -83,7 +90,7 @@ class SEVASRestrRecord:
 
     segment_id: int
     restrkn_id: int
-    name: str
+    name: str | None
     osm_id: int
     osm_vers: int
     fahrtri: int
@@ -110,7 +117,7 @@ class SEVASRestrRecord:
         Whether or not this restriction has a time component.
         """
         return (
-            self.zeit1_bis != ""
+            self.zeit1_bis is not None
             or self.tage_einzl != NO_TAGE_EINZL
             or (
                 self.tage_grppe != SEVASGroupedDays.NONE
@@ -349,8 +356,7 @@ class SEVASRestrRecord:
                         OsmiumTag("hgv:conditional", f"no @ {self._get_time_conditional()};yes @ {val}")
                     ]
                 return [
-                    OsmiumTag(f"hgv{self._get_direction()}", "no"),
-                    OsmiumTag(f"hgv{self._get_direction()}:conditional", f"yes @ {val}"),
+                    OsmiumTag(f"hgv{self._get_direction()}", f"{val}"),
                 ]
             case (
                 CommonRestrSignatures.HGV_NO_DELIVER_ONLY_7_5T
@@ -566,8 +572,11 @@ class SEVASRestrictions(ImmutableMixin):
         dbf = load_dbf(dbf_path, SEVASRestrFactory)
 
         record: SEVASRestrRecord
+
         for record in dbf.records:
             self._map[record.osm_id].append(record)
+
+        assert sum([len(s) for s in self._map.values()]) == 865
 
     def __getitem__(self, key: int) -> List[SEVASRestrRecord] | None:
         """
@@ -578,3 +587,6 @@ class SEVASRestrictions(ImmutableMixin):
     def items(self) -> Generator[Tuple[int, List[SEVASRestrRecord]], Any, Any]:
         for k, v in self._map.items():
             yield k, v
+
+    def values(self) -> Generator[List[SEVASRestrRecord], Any, Any]:
+        yield from self._map.values()

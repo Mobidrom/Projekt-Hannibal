@@ -1,0 +1,111 @@
+import pytest
+
+from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
+from test.providers.SEVAS.constants import (
+    RESTRICTION_PATH,
+    TEST_HAS_TIME,
+    TEST_RESTRICTIONS,
+    TEST_SIGNATURES,
+    TEST_TAGS,
+)
+
+
+@pytest.fixture
+def sevas_restrictions():
+    return SEVASRestrictions(RESTRICTION_PATH)
+
+
+def test_number_of_restrictions(sevas_restrictions: SEVASRestrictions):
+    """
+    Gets a Restriction table object and tests the number of total restrictions in there.
+    """
+    assert sum([len(way) for _, way in sevas_restrictions.items()]) == 865
+    assert sum([len(way) for way in sevas_restrictions.values()]) == 865
+
+
+@pytest.mark.parametrize("osm_id,expected_count", [(272345750, 2), (375986802, 1), (132630677, 2)])
+def test_osm_id_mapping(sevas_restrictions: SEVASRestrictions, osm_id, expected_count):
+    """
+    Checks that the mapping of OSM-ID --> List[Restrictions] works as expected
+    """
+    restrs = sevas_restrictions[osm_id]
+
+    assert len(restrs) == expected_count
+
+    for r in restrs:
+        assert r.osm_id == osm_id
+
+
+@pytest.mark.parametrize("osm_id", TEST_RESTRICTIONS.keys())
+def test_restriction_fields(sevas_restrictions: SEVASRestrictions, osm_id):
+    """
+    Checks whether the fields of a given restriction object created from the DBF are set as expected
+    """
+    assert len(sevas_restrictions[osm_id]) == 1
+    restr = sevas_restrictions[osm_id][0]
+
+    expected = TEST_RESTRICTIONS[osm_id]
+
+    assert restr.segment_id == expected.segment_id
+    assert restr.restrkn_id == expected.restrkn_id
+    assert restr.name == expected.name
+    assert restr.osm_vers == expected.osm_vers
+    assert restr.osm_id == expected.osm_id
+    assert restr.fahrtri == expected.fahrtri
+    assert restr.typ == expected.typ
+    assert restr.wert == expected.wert
+    assert restr.tage_einzl == expected.tage_einzl
+    assert restr.tage_grppe == expected.tage_grppe
+    assert restr.zeit1_von == expected.zeit1_von
+    assert restr.zeit1_bis == expected.zeit1_bis
+    assert restr.zeit2_von == expected.zeit2_von
+    assert restr.zeit2_bis == expected.zeit2_bis
+    assert restr.gemeinde == expected.gemeinde
+    assert restr.kreis == expected.kreis
+    assert restr.regbezirk == expected.regbezirk
+
+    # check the additional sign boolean flags
+    for k, v in expected.vz.items():
+        assert restr.vz[k] == v
+
+
+@pytest.mark.parametrize("osm_id", TEST_SIGNATURES.keys())
+def test_signatures(sevas_restrictions: SEVASRestrictions, osm_id):
+    """
+    Checks whether the restriction signatures match up with the expected signatures.
+    """
+
+    restr = sevas_restrictions[osm_id][0]
+
+    assert restr.sign_signature() == TEST_SIGNATURES[osm_id]
+
+
+@pytest.mark.parametrize("osm_id", TEST_TAGS.keys())
+def test_simple_tags(sevas_restrictions: SEVASRestrictions, osm_id):
+    """
+    Checks whether a restriction's tags match up with the expected tags.
+    """
+
+    restr = sevas_restrictions[osm_id][0]
+
+    expected_tags = TEST_TAGS[osm_id]
+    tags = restr.tags()
+
+    assert len(tags) == len(expected_tags)
+
+    for i, t in enumerate(tags):
+        e = expected_tags[i]
+
+        assert t.k == e.k
+        assert t.v == e.v
+
+
+@pytest.mark.parametrize("osm_id", TEST_HAS_TIME.keys())
+def test_has_time(sevas_restrictions: SEVASRestrictions, osm_id):
+    """
+    Make sure we recognize the presence of time cases correctly
+    """
+
+    restr = sevas_restrictions[osm_id][0]
+
+    assert restr.has_time_case() == TEST_HAS_TIME[osm_id]
