@@ -5,17 +5,37 @@ description = "Aufbereitung von LKW-Restriktionen für die Verwendung in OSM-bas
 authors = ["Christian Beiwinkel <christian@gis-ops.com>"]
 readme = "README.md"
 
+packages = [{ include = "hannibal" }, { include = "scripts" }]
+
+[tool.poetry.scripts]
+sevas_utils = "scripts.hannibal_sevas_utils:main"
+
 [tool.poetry.dependencies]
 python = "^3.12"
 osmium = "^3.7.0"
 dbfread = "^2.0.7"
+pyyaml = "^6.0.1"
+typer = "^0.12.3"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.7.1"
+pytest = "^8.2.2"
+ruff = "^0.4.8"
+
+
+[tool.poetry.group.notebook.dependencies]
+ipykernel = "^6.29.4"
+geopandas = "^0.14.4"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+# pyproject.toml
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["test"]
 
 [tool.ruff]
 # Enable pycodestyle (`E`), Pyflakes (`F`) codes by default and sort imports.

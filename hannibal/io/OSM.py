@@ -3,6 +3,8 @@ from pathlib import Path
 from osmium import Node, Relation, SimpleHandler, SimpleWriter, Way
 from osmium.osm import mutable
 
+from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
+
 
 class _OSMWriter(SimpleWriter):
     def __init__(self, out_path: Path):
@@ -10,7 +12,7 @@ class _OSMWriter(SimpleWriter):
 
 
 class OSMRewriter(SimpleHandler):
-    def __init__(self, in_path: Path, out_path: Path) -> None:
+    def __init__(self, in_path: Path, out_path: Path, restrictions: SEVASRestrictions) -> None:
         """
         OSM Handler that rewrites OSM objects from one file to another, possibly modifying some
         """
@@ -21,6 +23,7 @@ class OSMRewriter(SimpleHandler):
 
         self._in_path = in_path
         self._writer = _OSMWriter(out_path)
+        self._restrictions = restrictions
 
     def node(self, node: Node) -> None:
         """

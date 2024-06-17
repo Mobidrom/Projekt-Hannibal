@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from hannibal.io.OSM.Rewriter import OSMRewriter
+from hannibal.io.OSM import OSMRewriter
+from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
 
 
 class SEVASProvider:
@@ -32,9 +33,10 @@ class SEVASProvider:
         self._restrictions_path = restrctions_path
         self._signs_path = signs_path
 
-        self._rewriter: OSMRewriter = OSMRewriter(in_path, out_path)
+        # create mappings OSM_ID -> [*sevas_records]
+        restrictions = SEVASRestrictions(self._restrictions_path)
 
-        # create mapping OSM_ID -> [*sevas_records]
+        self._rewriter: OSMRewriter = OSMRewriter(in_path, out_path, restrictions)
 
     def process(self):
         """
@@ -42,3 +44,7 @@ class SEVASProvider:
         """
         self._rewriter.apply_file(self._in_path)
         self._rewriter.close()
+
+    @property
+    def restrictions(self):
+        return self._rewriter._restrictions
