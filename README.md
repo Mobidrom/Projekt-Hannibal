@@ -7,7 +7,7 @@ Der Projektname verweist auf den karthagischen Feldherr Hannibal, der mit Elefan
 
 Benötigt werden:
 
-- Python >= 3.10
+- Python >= 3.9
 - Poetry
 
 ```bash
