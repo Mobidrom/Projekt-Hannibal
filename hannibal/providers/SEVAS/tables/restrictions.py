@@ -147,11 +147,13 @@ class SEVASRestrRecord:
         """
         OSM allows traffic_sign tags on ways that specify the exact traffic sign (including all its
         components) to be documented along the ways where it's valid.
+
+        example output:
+            {"traffic_sign": "DE:253,1020-30"}
+
         """
-        return {
-            "traffic_sign": f"DE:{','.join([str(self.typ), *[str(v.value)[3:].replace("_", "-") for
-                                              v in self.get_vz() if v]])}"
-        }
+        vz = [str(v.value)[3:].replace("_", "-") for v in self.get_vz()]
+        return {"traffic_sign": f"DE:{','.join([str(self.typ), *vz])}"}
 
     def is_dimensional_type(self) -> bool:
         return self.type in DIMENSIONAL_RESTRICTION_TYPES
