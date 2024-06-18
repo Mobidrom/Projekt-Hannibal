@@ -59,7 +59,7 @@ jobs:
 
       - name: pytest
         run: |
-          pip install -e .
+          source .venv/bin/activate
           pytest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
