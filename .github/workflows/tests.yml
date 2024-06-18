@@ -1,0 +1,65 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - "master"
+      - "cb-init"
+    paths-ignore:
+      - ".gitignore"
+      - "**.md"
+      - "**.rst"
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - ".gitignore"
+      - "**.md"
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        python_version: [3.9, 3.10, "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python_version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: pip
+
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: style & lint checks
+        run: |
+          source .venv/bin/activate
+          pre-commit run --all-files --color=always
+
+      - name: pytest
+        run: |
+          pip install -e .
+          pytest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
