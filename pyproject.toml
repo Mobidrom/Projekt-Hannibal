@@ -12,7 +12,7 @@ sevas_utils = "scripts.hannibal_sevas_utils:main"
 hannibal = "cli:main"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 osmium = "^3.7.0"
 dbfread = "^2.0.7"
 pyyaml = "^6.0.1"
