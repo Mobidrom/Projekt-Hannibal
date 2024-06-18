@@ -3,15 +3,14 @@ name: tests
 on:
   push:
     branches:
-      - "master"
-      - "cb-init"
+      - "main"
     paths-ignore:
       - ".gitignore"
       - "**.md"
       - "**.rst"
   pull_request:
     branches:
-      - master
+      - main
     paths-ignore:
       - ".gitignore"
       - "**.md"
