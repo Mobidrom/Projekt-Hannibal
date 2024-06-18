@@ -1,15 +1,13 @@
 from pathlib import Path
 
-from osmium.osm import Tag as OsmiumTag
-
-from hannibal.providers.SEVAS.constants import CommonRestrSignatures, RestrVZ
+from hannibal.providers.SEVAS.constants import RestrVZ
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrRecord
 
+LEZ_PATH = Path("test/data/zonen_polygone_koeln.shp")
 RESTRICTION_PATH = Path("test/data/restriktionen_koeln.dbf")
+PREFERRED_ROADS_PATH = Path("test/data/vorrangrouten_koeln.dbf")
+POLYGON_SEGMENTS_PATH = Path("test/data/zonen_segmente_koeln.dbf")
 
-TEST_HAS_TIME = {4003447: False, 16941331: True, 494470560: False}
-
-TEST_TAGS = {4003447: [OsmiumTag("hgv", "destination"), OsmiumTag("traffic_sign", "DE:253,1020-30")]}
 
 TEST_RESTRICTIONS = {
     16941331: SEVASRestrRecord(
@@ -100,11 +98,4 @@ TEST_RESTRICTIONS = {
             RestrVZ.VZ_1053_37: False,
         },
     ),
-}
-
-TEST_SIGNATURES = {
-    16941331: "262" + "0" * 23,
-    494470560: "25300010000000000000000000",
-    4218825: "25300000000000100000000100",
-    4003447: CommonRestrSignatures.HGV_NO_DEST_ONLY.value,
 }

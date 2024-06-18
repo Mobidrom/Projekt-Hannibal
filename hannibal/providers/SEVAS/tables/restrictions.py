@@ -4,8 +4,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Generator, List, Mapping, Tuple
 
-from osmium.osm import Tag as OsmiumTag
-
 from hannibal.io.DBF import load_dbf
 from hannibal.logging import LOGGER
 from hannibal.providers import HannibalProvider
@@ -22,17 +20,12 @@ from hannibal.providers.SEVAS.constants import (
     TRAFFIC_MODES,
     CommonRestrSignatures,
     RestrVZ,
+    SEVASDir,
     SEVASRestrType,
 )
 from hannibal.util.data import str_to_bool
 from hannibal.util.exception import HannibalSchemaError
 from hannibal.util.immutable import ImmutableMixin
-
-
-class SEVASDir(str, Enum):
-    BOTH = "0"
-    FORW = "1"
-    BACKW = "2"
 
 
 class SEVASGroupedDays(str, Enum):
@@ -67,6 +60,9 @@ DEST_ONLY_MODIFIABLE = [
 
 
 def SEVASRestrFactory(items: List[Tuple[str, Any]]):
+    """
+    Function passed to DBF loader to create in memory records from DBF records
+    """
     kwargs = {}
     vz = {}
     for k, v in items:
@@ -93,7 +89,7 @@ class SEVASRestrRecord:
     name: str | None
     osm_id: int
     osm_vers: int
-    fahrtri: int
+    fahrtri: SEVASDir
     typ: int
     wert: str | None
     tage_einzl: str | None
@@ -147,16 +143,15 @@ class SEVASRestrRecord:
         """
         return "".join([self.typ, *["1" if v else "0" for k, v in self.get_vz_items_sorted()]])
 
-    def get_traffic_sign_tag(self) -> OsmiumTag:
+    def get_traffic_sign_tag(self) -> Mapping[str, str]:
         """
         OSM allows traffic_sign tags on ways that specify the exact traffic sign (including all its
         components) to be documented along the ways where it's valid.
         """
-        return OsmiumTag(
-            "traffic_sign",
-            f"DE:{','.join([str(self.typ), *[str(v.value)[3:].replace("_", "-") for
-                                              v in self.get_vz() if v]])}",
-        )
+        return {
+            "traffic_sign": f"DE:{','.join([str(self.typ), *[str(v.value)[3:].replace("_", "-") for
+                                              v in self.get_vz() if v]])}"
+        }
 
     def is_dimensional_type(self) -> bool:
         return self.type in DIMENSIONAL_RESTRICTION_TYPES
@@ -225,36 +220,49 @@ class SEVASRestrRecord:
         """
         return len(self.get_special_vz())
 
-    def tags(self):
+    def tags(self) -> Mapping[str, str]:
+        """
+        Get the tags that best correspond to the given restriction. Internally tries the following:
+
+          1. Checks if the restriction matches a special restriction signature
+          2. Checks for which (if any) additional signs are present, and tries its best to handle
+             the given combination. It may encounter additional signs that are complex to convert
+             to tags, so it may still fall back to 3.
+          3. Creates tags based only on the type/value of the restriction plus any time and direction
+             restrictions that may apply.
+        """
         if self.is_special_signature():
-            return [*self.get_special_signature_tags(), self.get_traffic_sign_tag()]
+            return {**self.get_special_signature_tags(), **self.get_traffic_sign_tag()}
         if self.exemptor_count() and self.specifier_count():
             if self.special_vz_count():
-                LOGGER.warn(
+                # for now we just log these special cases and let the base handler handle them
+                LOGGER.warning(
                     f"Restriction has exemption, specification and special case: {self.segment_id}"
                 )
             else:
-                return [
-                    *self.get_exemptor_tags(),
-                    *self.get_specifier_tags(),
-                    self.get_traffic_sign_tag(),
-                ]
+                return {
+                    **self.get_exemptor_tags(),
+                    **self.get_specifier_tags(),
+                    **self.get_traffic_sign_tag(),
+                }
         elif self.exemptor_count() and self.special_vz_count():
-            LOGGER.warn(
+            # for now we just log these special cases and let the base handler handle them
+            LOGGER.warning(
                 f"Restriction has exemption and special case: {self.segment_id}, {self.sign_signature()}"
                 ", falling back to default."
             )
         elif self.exemptor_count():  # only exemption cases
-            return [self.get_basic_tag(), *self.get_exemptor_tags(), self.get_traffic_sign_tag()]
+            return {**self.get_basic_tag(), **self.get_exemptor_tags(), **self.get_traffic_sign_tag()}
         elif self.specifier_count():
             if self.special_vz_count():
-                LOGGER.warn(f"Restriction has special case: {self.segment_id}")
+                # for now we just log these special cases and let the base handler handle them
+                LOGGER.warning(f"Restriction has special case: {self.segment_id}")
             else:
-                return [*self.get_specifier_tags(), self.get_traffic_sign_tag()]
+                return {**self.get_specifier_tags(), **self.get_traffic_sign_tag()}
 
-        return [self.get_basic_tag(), self.get_traffic_sign_tag()]
+        return {**self.get_basic_tag(), **self.get_traffic_sign_tag()}
 
-    def get_exemptor_tags(self) -> List[OsmiumTag]:
+    def get_exemptor_tags(self) -> Mapping[str, str]:
         """
         Get the tags based on the restriction's exemptors.
 
@@ -268,7 +276,7 @@ class SEVASRestrRecord:
             maxheight=none @ destination;none @ bus
         """
         key = KEY_FROM_TYPE[self.typ]
-        exemptor_tags: List[OsmiumTag] = []
+        exemptor_tags: Mapping[ſtr, str] = {}
         permissive_value = PERMISSIVE_VALUES[self.typ]
         exemptor_modes: List[str] = []
         has_time_case = self.has_time_case()
@@ -276,14 +284,7 @@ class SEVASRestrRecord:
         for exemptor in self.get_exemptors():
             exemptor_modes.extend(TRAFFIC_MODES[exemptor])
 
-        if (
-            has_time_case
-            # or self.typ == SEVASRestrType.HGV_NO
-            # or (
-            #     self.typ == SEVASRestrType.HGV_NO
-            #     and ("delivery" not in exemptor_modes and "destination" not in exemptor_modes)
-            # )
-        ):
+        if has_time_case:
             for mode in exemptor_modes:
                 # prevent something like hgv:bus=yes, the exemptor in this case would be bus=yes
 
@@ -291,7 +292,7 @@ class SEVASRestrRecord:
                     mode_key = mode
                 else:
                     mode_key = f"{key}:{mode}"
-                exemptor_tags.append(OsmiumTag(mode_key, permissive_value))
+                exemptor_tags[mode_key] = permissive_value
         # if there is no time case
         # it makes sense to group the exemptors under the :conditional tag
         # ...unless they're used to specify access for a certain vehicle type
@@ -301,19 +302,19 @@ class SEVASRestrRecord:
             rules: List[str] = []
             for mode in exemptor_modes:
                 if mode not in NON_KEYABLE and self.typ == SEVASRestrType.HGV_NO:
-                    exemptor_tags.append(OsmiumTag(mode, permissive_value))
+                    exemptor_tags[mode] = permissive_value
                 else:
                     rules.append(mode)
             if len(rules):
                 value = ";".join([f"{permissive_value} @ {rule}" for rule in rules])
-                exemptor_tags.append(OsmiumTag(con_key, value))
+                exemptor_tags[con_key] = value
         return exemptor_tags
 
-    def get_specifier_tags(self) -> List[OsmiumTag]:
+    def get_specifier_tags(self) -> Mapping[str, str]:
         """
         Get the tags based on the restriction's specifiers.
         """
-        specifier_tags: List[OsmiumTag] = []
+        specifier_tags: Mapping[str, str] = {}
         specifier_modes: List[str] = []
         key = KEY_FROM_TYPE[self.typ]
         times = self._get_time_conditional()
@@ -338,11 +339,11 @@ class SEVASRestrRecord:
             if has_time_case:
                 mode_key = f"{mode_key}:conditional"
 
-            specifier_tags.append(OsmiumTag(mode_key, value))
+            specifier_tags[mode_key] = value
 
         return specifier_tags
 
-    def get_special_signature_tags(self) -> List[OsmiumTag]:
+    def get_special_signature_tags(self) -> Mapping[str, str]:
         """
         SEVAS restrictions follow a pareto distribution, so we manually handle the 20 or so most common
         ones to make sure over 95% of all restrictions are tagged correctly.
@@ -352,12 +353,10 @@ class SEVASRestrRecord:
             case CommonRestrSignatures.HGV_NO_DEST_ONLY | CommonRestrSignatures.HGV_NO_DELIVERY_ONLY:
                 val = "destination" if sig == CommonRestrSignatures.HGV_NO_DEST_ONLY else "delivery"
                 if self.has_time_case():
-                    return [
-                        OsmiumTag("hgv:conditional", f"no @ {self._get_time_conditional()};yes @ {val}")
-                    ]
-                return [
-                    OsmiumTag(f"hgv{self._get_direction()}", f"{val}"),
-                ]
+                    return {"hgv:conditional": f"no @ {self._get_time_conditional()};yes @ {val}"}
+                return {
+                    f"hgv{self._get_direction()}": f"{val}",
+                }
             case (
                 CommonRestrSignatures.HGV_NO_DELIVER_ONLY_7_5T
                 | CommonRestrSignatures.HGV_NO_DEST_ONLY_7_5T
@@ -368,32 +367,24 @@ class SEVASRestrRecord:
                     else "delivery"
                 )
                 if self.has_time_case():
-                    return [
-                        OsmiumTag(
-                            "maxweight:hgv:conditional",
-                            f"7.5 @ {self._get_time_conditional()};none @ {val}",
-                        )
-                    ]
-                return [
-                    OsmiumTag(f"maxweight{self._get_direction()}", "7.5"),
-                    OsmiumTag(f"maxweight{self._get_direction()}:conditional", f"none @ {val}"),
-                ]
+                    return {
+                        "maxweight:hgv:conditional": f"7.5 @ {self._get_time_conditional()};none @ {val}",  # noqa
+                    }
+                return {
+                    f"maxweight{self._get_direction()}": "7.5",
+                    f"maxweight{self._get_direction()}:conditional": f"none @ {val}",
+                }
             case CommonRestrSignatures.HGV_NO_7_5T | CommonRestrSignatures.HGV_NO_12T:
                 val = "12" if sig == CommonRestrSignatures.HGV_NO_12T else "7.5"
                 if self.has_time_case():
-                    return [
-                        OsmiumTag(
-                            f"maxweight:hgv{self._get_direction()}:conditional",
-                            f"{val} @ {self._get_time_conditional()}",
-                        )
-                    ]
-                return [
-                    OsmiumTag(f"maxweight:hgv{self._get_direction()}", val),
-                ]
+                    return {
+                        f"maxweight:hgv{self._get_direction()}:conditional": f"{val} @ {self._get_time_conditional()}",  # noqa
+                    }
+                return {f"maxweight:hgv{self._get_direction()}": val}
+        LOGGER.warning("Found special signature but no tagging.")
+        return {}
 
-        return []
-
-    def get_basic_tag(self) -> List[OsmiumTag]:
+    def get_basic_tag(self) -> Mapping[str, str]:
         """
         Generates OSM tags based on the record's type, value and temportal restrictions.
 
@@ -406,9 +397,7 @@ class SEVASRestrRecord:
         """
 
         if not self.is_basic():
-            # we are handling a rare fallthrough case
-            # TODO: log it
-            LOGGER.warn(f"Fallback case for restriction {self.segment_id}")
+            LOGGER.warning(f"Fallback case for restriction {self.segment_id}")
 
         key: str = KEY_FROM_TYPE[self.typ]
         value: str = "no"  # default restrictive value
@@ -438,7 +427,7 @@ class SEVASRestrRecord:
             key = f"{key}:conditional"
             value = f"{value} @ {conditional}"
 
-        return OsmiumTag(key, value)
+        return {key: value}
 
     def _get_direction(self):
         """
@@ -569,20 +558,29 @@ class SEVASRestrictions(ImmutableMixin):
         # the mapping default value is an empty list
         self._map: Mapping[int, List[SEVASRestrRecord]] = defaultdict(list)
 
+        # for stats, we keep track of the number of times an OSM ID was accessed
+        self._access_count: Mapping[int, int] = {}
+
         dbf = load_dbf(dbf_path, SEVASRestrFactory)
 
         record: SEVASRestrRecord
 
         for record in dbf.records:
             self._map[record.osm_id].append(record)
-
-        assert sum([len(s) for s in self._map.values()]) == 865
+            self._access_count[record.osm_id] = 0
 
     def __getitem__(self, key: int) -> List[SEVASRestrRecord] | None:
         """
         Access the internal mapping by OSM ID
         """
+        if self._access_count.get(key):
+            self._access_count[key] += 1
         return self._map[key] or None
+
+    def unaccessed_osm_ids(self) -> Generator[int, Any, Any]:
+        for k, v in self._access_count:
+            if v == 0:
+                yield k
 
     def items(self) -> Generator[Tuple[int, List[SEVASRestrRecord]], Any, Any]:
         for k, v in self._map.items():

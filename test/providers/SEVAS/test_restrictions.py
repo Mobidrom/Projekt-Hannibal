@@ -1,13 +1,22 @@
 import pytest
 
+from hannibal.providers.SEVAS.constants import CommonRestrSignatures
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
 from test.providers.SEVAS.constants import (
     RESTRICTION_PATH,
-    TEST_HAS_TIME,
     TEST_RESTRICTIONS,
-    TEST_SIGNATURES,
-    TEST_TAGS,
 )
+
+TEST_HAS_TIME = {4003447: False, 16941331: True, 494470560: False}
+
+TEST_RESTRICTION_TAGS = {4003447: {"hgv": "destination", "traffic_sign": "DE:253,1020-30"}}
+
+TEST_SIGNATURES = {
+    16941331: "262" + "0" * 23,
+    494470560: "25300010000000000000000000",
+    4218825: "25300000000000100000000100",
+    4003447: CommonRestrSignatures.HGV_NO_DEST_ONLY.value,
+}
 
 
 @pytest.fixture
@@ -80,7 +89,7 @@ def test_signatures(sevas_restrictions: SEVASRestrictions, osm_id):
     assert restr.sign_signature() == TEST_SIGNATURES[osm_id]
 
 
-@pytest.mark.parametrize("osm_id", TEST_TAGS.keys())
+@pytest.mark.parametrize("osm_id", TEST_RESTRICTION_TAGS.keys())
 def test_simple_tags(sevas_restrictions: SEVASRestrictions, osm_id):
     """
     Checks whether a restriction's tags match up with the expected tags.
@@ -88,16 +97,15 @@ def test_simple_tags(sevas_restrictions: SEVASRestrictions, osm_id):
 
     restr = sevas_restrictions[osm_id][0]
 
-    expected_tags = TEST_TAGS[osm_id]
+    expected_tags = TEST_RESTRICTION_TAGS[osm_id]
     tags = restr.tags()
 
     assert len(tags) == len(expected_tags)
 
-    for i, t in enumerate(tags):
-        e = expected_tags[i]
+    for k, v in tags.items():
+        ev = expected_tags[k]
 
-        assert t.k == e.k
-        assert t.v == e.v
+        assert v == ev
 
 
 @pytest.mark.parametrize("osm_id", TEST_HAS_TIME.keys())

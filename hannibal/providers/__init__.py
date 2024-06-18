@@ -2,4 +2,6 @@ from enum import Enum
 
 
 class HannibalProvider(str, Enum):
-    SEVAS = "SEVAS"
+    SEVAS = "sevas"
+    TOMTOM = "tomtom"
+    HERE = "here"

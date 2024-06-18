@@ -5,6 +5,25 @@ INVALID_TAGE_EINZL = "1" * 7
 DAYS_OF_WEEK = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
 
 
+class SEVASLayer(str, Enum):
+    RESTRICTIONS = "restriktionen_segmente"
+    PREFERRED_ROADS = "vorrangrouten_segmente"
+    LOW_EMISSION_ZONES = "zonen_polygone"
+    ROAD_SPEEDS = "zonen_segmente"
+    TRAFFIC_SIGNS = "lkw_schilder_aufstellvorrichtungen"
+
+
+class SEVASZoneType(str, Enum):
+    LEM = "umweltzone"
+    SPEED = "tempozone"
+
+
+class SEVASDir(str, Enum):
+    BOTH = "0"
+    FORW = "1"
+    BACKW = "2"
+
+
 class RestrVZ(str, Enum):
     # specifier HGV
     VZ_1010_51 = "vz_1010_51"

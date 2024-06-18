@@ -7,6 +7,9 @@ from typing import Annotated
 
 import typer
 
+from hannibal.providers.SEVAS.client import SEVASClient
+from hannibal.providers.SEVAS.provider import SEVASProvider
+
 sys.path.append("../hannibal")
 sys.path.append("../")
 sys.path.append("./")
@@ -70,6 +73,29 @@ def tags(
             print(f"\tSegment: {rest.segment_id}")
             for tag in rest.tags():
                 print(f'\t\t"{tag.k}": "{tag.v}"')
+
+
+@app.command()
+def download(
+    data_dir: Path,
+    base_url: Annotated[str, typer.Argument(help="")] = "https://sevas.nrw.de/osm/sevas",
+):
+    client = SEVASClient(data_dir, base_url)
+    client.get_all()
+
+
+@app.command()
+def convert(
+    data_dir: Path,
+    osm_in: Path,
+    osm_out: Path,
+    base_url: Annotated[str, typer.Argument(help="")] = "https://sevas.nrw.de/osm/sevas",
+):
+    """
+    Maps SEVAS data onto an existing OSM file.
+    """
+    provider = SEVASProvider(osm_in, osm_out, base_url, data_dir, False)
+    provider.process()
 
 
 @app.command()

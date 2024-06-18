@@ -6,7 +6,7 @@ from dbfread import DBF
 from hannibal.util.exception import HannibalIOError
 
 
-def load_dbf(p: Path, recfactory=Callable, load: bool = True) -> DBF:
+def load_dbf(p: Path, recfactory: Callable, load: bool = True) -> DBF:
     """
     Load a DBF located at the given path.
 
