@@ -47,17 +47,6 @@ KEY_FROM_TYPE = {
     SEVASRestrType.HGV_TRAILER: "hgv:trailer",
 }
 
-DEST_ONLY_MODIFIABLE = [
-    SEVASRestrType.WEIGHT,
-    SEVASRestrType.HEIGHT,
-    SEVASRestrType.LENGTH,
-    SEVASRestrType.HAZMAT,
-    SEVASRestrType.WIDTH,
-    SEVASRestrType.AXLE_LOAD,
-    SEVASRestrType.HAZMAT_WATER,
-    SEVASRestrType.HGV_TRAILER,
-]
-
 
 def SEVASRestrFactory(items: List[Tuple[str, Any]]):
     """
@@ -321,7 +310,7 @@ class SEVASRestrRecord:
         key = KEY_FROM_TYPE[self.typ]
         times = self._get_time_conditional()
         direction = self._get_direction()
-        value = self.wert or "no"
+        value = self.reformat_num(self.wert) or "no"
 
         if has_time_case := self.has_time_case():
             value = f"{value} @ {times}"
@@ -355,7 +344,9 @@ class SEVASRestrRecord:
             case CommonRestrSignatures.HGV_NO_DEST_ONLY | CommonRestrSignatures.HGV_NO_DELIVERY_ONLY:
                 val = "destination" if sig == CommonRestrSignatures.HGV_NO_DEST_ONLY else "delivery"
                 if self.has_time_case():
-                    return {"hgv:conditional": f"no @ {self._get_time_conditional()};yes @ {val}"}
+                    return {
+                        f"hgv:{self._get_direction()}conditional": f"no @ {self._get_time_conditional()};yes @ {val}"  # noqa
+                    }
                 return {
                     f"hgv{self._get_direction()}": f"{val}",
                 }
@@ -364,9 +355,9 @@ class SEVASRestrRecord:
                 | CommonRestrSignatures.HGV_NO_DEST_ONLY_7_5T
             ):
                 val = (
-                    "destination"
+                    "delivery"
                     if sig == CommonRestrSignatures.HGV_NO_DELIVER_ONLY_7_5T
-                    else "delivery"
+                    else "destination"
                 )
                 if self.has_time_case():
                     return {
@@ -383,6 +374,21 @@ class SEVASRestrRecord:
                         f"maxweight:hgv{self._get_direction()}:conditional": f"{val} @ {self._get_time_conditional()}",  # noqa
                     }
                 return {f"maxweight:hgv{self._get_direction()}": val}
+            case CommonRestrSignatures.HGV_NO_DEST_ONLY:
+                if self.has_time_case():
+                    return {
+                        f"hgv{self._get_direction()}:conditional": f"no @ {self._get_time_conditional()}; yes @ delivery; yes @ destination"  # noqa
+                    }
+                return {f"hgv{self._get_direction()}": "destination;delivery"}
+            case CommonRestrSignatures.MAXWEIGHT_DELIVERY_ONLY:
+                if self.has_time_case():
+                    return {
+                        f"maxweight{self._get_direction()}:conditional": f"{self.reformat_num(self.wert)} @ {self._get_time_conditional()}; none @ delivery"  # noqa
+                    }
+                return {
+                    f"maxweight{self._get_direction()}": f"{self.reformat_num(self.wert)}",
+                    f"maxweight{self._get_direction()}:conditional": "none @ delivery",
+                }
         LOGGER.warning("Found special signature but no tagging.")
         return {}
 
@@ -501,7 +507,7 @@ class SEVASRestrRecord:
         """
         has_single_days = self.tage_einzl != NO_TAGE_EINZL
         has_grouped_days = self.tage_grppe != SEVASGroupedDays.NONE
-        has_time = self.zeit1_von != ""
+        has_time = self.zeit1_von is not None
 
         if not has_single_days and not has_grouped_days and not has_time:
             return ""
@@ -571,6 +577,8 @@ class SEVASRestrictions(ImmutableMixin):
             self._map[record.osm_id].append(record)
             self._access_count[record.osm_id] = 0
 
+        self.validate()
+
     def __getitem__(self, key: int) -> List[SEVASRestrRecord] | None:
         """
         Access the internal mapping by OSM ID
@@ -590,3 +598,23 @@ class SEVASRestrictions(ImmutableMixin):
 
     def values(self) -> Generator[List[SEVASRestrRecord], Any, Any]:
         yield from self._map.values()
+
+    def validate(self) -> bool:
+        """
+        Issue a warning if multiple restrictions for the same way have the same type and are valid
+        in the same direction.
+
+        :return: returns False if multiple restrictions of same type and direction
+            were found for one way,  else True
+        """
+
+        for osm_id, restrs in self.items():
+            types = set()
+            for restr in restrs:
+                if f"{restr.typ}{restr.fahrtri}" in types:
+                    LOGGER.warning(f"Duplicate restriction types for way {osm_id}")
+                    return False
+                else:
+                    types.add(f"{restr.typ}{restr.fahrtri}")
+
+        return True

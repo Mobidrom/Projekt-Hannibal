@@ -7,9 +7,27 @@ from test.providers.SEVAS.constants import (
     TEST_RESTRICTIONS,
 )
 
-TEST_HAS_TIME = {4003447: False, 16941331: True, 494470560: False}
+TEST_HAS_TIME = {4003447: False, 16941331: True, 494470560: False, 415352315: False, 135810076: False}
 
-TEST_RESTRICTION_TAGS = {4003447: {"hgv": "destination", "traffic_sign": "DE:253,1020-30"}}
+TEST_RESTRICTION_TAGS = {
+    4003447: {"hgv": "destination", "traffic_sign": "DE:253,1020-30"},
+    135810076: {"maxheight": "3.1", "traffic_sign": "DE:265"},
+    415352315: {"maxlength": "10", "traffic_sign": "DE:266"},
+    176232057: {"hazmat": "no", "traffic_sign": "DE:261"},
+    690337668: {
+        "maxweight": "3.5",
+        "maxweight:conditional": "none @ delivery",
+        "traffic_sign": "DE:262,1026-35",
+    },
+    132408287: {"hgv": "delivery", "traffic_sign": "DE:253,1026-35"},
+    171772366: {
+        "maxweight:forward": "7.5",
+        "maxweight:forward:conditional": "none @ delivery",
+        "traffic_sign": "DE:253,1026-35,1053-33",
+    },
+    52350372: {"hgv:conditional": "no @ 06:00-22:00;yes @ delivery", "traffic_sign": "DE:253,1026-35"},
+    762953386: {"maxweight:conditional": "4 @ 17:00-08:00", "traffic_sign": "DE:262"},
+}
 
 TEST_SIGNATURES = {
     16941331: "262" + "0" * 23,

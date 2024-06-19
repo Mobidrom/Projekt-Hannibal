@@ -71,8 +71,8 @@ def tags(
         for rest in restrs:
             print(f"\tRestriction: {rest.restrkn_id}")
             print(f"\tSegment: {rest.segment_id}")
-            for tag in rest.tags():
-                print(f'\t\t"{tag.k}": "{tag.v}"')
+            for k, v in rest.tags().items():
+                print(f'\t\t"{k}": "{v}"')
 
 
 @app.command()
