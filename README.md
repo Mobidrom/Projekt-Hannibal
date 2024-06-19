@@ -9,6 +9,7 @@ Benötigt werden:
 
 - Python >= 3.10
 - Poetry
+- Osmium Tool um OSM Dateien zusammenzuführen
 
 ```bash
 git clone git@github.com:Mobidrom/Projekt-Hannibal.git
