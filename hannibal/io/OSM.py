@@ -5,10 +5,11 @@ from osmium import Node, Relation, SimpleHandler, SimpleWriter, Way
 from osmium.osm import Tag as OsmiumTag
 from osmium.osm import mutable
 
+from hannibal.providers.SEVAS.constants import REMOVE_KEYS, SEVASLayer
 from hannibal.providers.SEVAS.tables.low_emission_zones import SEVAS_LEZ
 from hannibal.providers.SEVAS.tables.preferred_roads import SEVASPreferredRoads
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
-from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeeds
+from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeedRecord, SEVASRoadSpeeds
 
 # it's very unlikely that we'll need to deviate from
 # these starting IDs, since it won't make much sense to multiprocess this
@@ -84,16 +85,35 @@ class OSMRewriter(SimpleHandler):
 
         :param way: an unmutable way from the input file
         """
-        tags = {}
+        tags: Mapping[str, str] = dict(way.tags)
         if self._restrictions and self._restrictions[way.id]:
+            tags = {
+                k: v for k, v in tags.items() if not k.startswith(REMOVE_KEYS[SEVASLayer.RESTRICTIONS])
+            }
             for restriction in self._restrictions[way.id]:
                 tags.update(restriction.tags())
 
         if self._preferred_roads and self._preferred_roads[way.id]:
+            tags = {
+                k: v
+                for k, v in tags.items()
+                if not k.startswith(REMOVE_KEYS[SEVASLayer.PREFERRED_ROADS])
+            }
             p = self._preferred_roads[way.id]
             tags.update(p.tag())
 
-        mut = way.replace(tags={**dict(way.tags), **tags})
+        if self._road_speeds and self._road_speeds[way.id]:
+            tags = {
+                k: v for k, v in tags.items() if not k.startswith(REMOVE_KEYS[SEVASLayer.ROAD_SPEEDS])
+            }
+            rs = self._road_speeds[way.id]
+            strictest: SEVASRoadSpeedRecord = rs[0]
+            for road_speed in rs:
+                if road_speed.wert > strictest.wert:
+                    strictest = road_speed
+            tags.update(strictest.tags())
+
+        mut = way.replace(tags=tags)
         self._add_way(mut)
 
     def relation(self, rel: Relation) -> None:

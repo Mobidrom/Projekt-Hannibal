@@ -4,8 +4,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Generator, List, Mapping, Tuple
 
-from osmium.osm import Tag as OsmiumTag
-
 from hannibal.io.DBF import load_dbf
 from hannibal.logging import LOGGER
 from hannibal.providers.SEVAS.constants import SEVASZoneType
@@ -30,6 +28,14 @@ class SEVASRoadSpeedType(str, Enum):
     URBAN = "310"
 
     def __lt__(self, other):
+        if self.__class__ is not other.__class__:
+            raise TypeError(f"Can't compare {self.__class__} with {other.__class__}")
+
+        # allow for comparison through member index
+        members = list(SEVASRoadSpeedType.__members__.values())
+        return members.index(self) < members.index(other)
+
+    def __gt__(self, other):
         if self.__class__ is not other.__class__:
             raise TypeError(f"Can't compare {self.__class__} with {other.__class__}")
 
@@ -69,14 +75,16 @@ class SEVASRoadSpeedRecord:
     kreis: str
     regbezirk: str
 
-    def tags(self) -> List[OsmiumTag]:
+    def tags(self) -> Mapping[str, str]:
         """
         Get the OSM tags for this road segment.
         """
-        tags = [OsmiumTag("maxspeed", f"{self.get_speed()}")]
+        tags = {"maxspeed": f"{self.get_speed()}"}
         if zone := self.get_zone():
-            tags.append(OsmiumTag("zone:traffic", f"DE:{zone}"))
-
+            val = f"DE:{zone}"
+            tags["zone:traffic"] = val
+            tags["source:maxspeed"] = val
+            tags["maxspeed:type"] = val
         return tags
 
     def get_speed(self) -> str:
@@ -136,8 +144,10 @@ class SEVASRoadSpeeds(ImmutableMixin):
         """
         Access the internal mapping by OSM ID
         """
-        self._access_count[key] += 1
-        return self._map[key] or None
+        if val := self._map.get(key):
+            self._access_count[key] += 1
+            return val
+        return None
 
     def unaccessed_osm_ids(self) -> Generator[int, Any, Any]:
         """

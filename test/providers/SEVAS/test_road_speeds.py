@@ -1,5 +1,4 @@
 import pytest
-from osmium.osm import Tag as OsmiumTag
 
 from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeedRecord, SEVASRoadSpeeds
 from test.providers.SEVAS.constants import (
@@ -7,8 +6,18 @@ from test.providers.SEVAS.constants import (
 )
 
 TEST_ROAD_SPEED_TAGS = {
-    255602524: [OsmiumTag("maxspeed", "30"), OsmiumTag("zone:traffic", "DE:zone30")],
-    23198836: [OsmiumTag("maxspeed", "30"), OsmiumTag("zone:traffic", "DE:zone30")],
+    255602524: {
+        "maxspeed": "30",
+        "zone:traffic": "DE:zone30",
+        "maxspeed:type": "DE:zone30",
+        "source:maxspeed": "DE:zone30",
+    },
+    23198836: {
+        "maxspeed": "30",
+        "zone:traffic": "DE:zone30",
+        "maxspeed:type": "DE:zone30",
+        "source:maxspeed": "DE:zone30",
+    },
 }
 
 TEST_ROAD_SPEEDS = {
@@ -72,6 +81,5 @@ def test_simple_tags(sevas_road_speeds: SEVASRoadSpeeds, osm_id):
 
     tags = restr.tags()
 
-    for i, tag in enumerate(tags):
-        assert tag.k == TEST_ROAD_SPEED_TAGS[osm_id][i].k
-        assert tag.v == TEST_ROAD_SPEED_TAGS[osm_id][i].v
+    for k, v in tags.items():
+        assert v == TEST_ROAD_SPEED_TAGS[osm_id][k]
