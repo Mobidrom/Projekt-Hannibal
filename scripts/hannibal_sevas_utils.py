@@ -1,5 +1,4 @@
 import sys
-from collections import defaultdict
 from enum import Enum
 from logging import DEBUG
 from pathlib import Path
@@ -29,38 +28,14 @@ class SEVASType(str, Enum):
 
 
 @app.command()
-def uniquecounts(
-    path: Path,
-    type: Annotated[SEVASType, typer.Option(help="The type of features")] = SEVASType.RESTRICTIONS,
-    cutoff: Annotated[int, typer.Option(help="Count threshold")] = 0,
-    attr: Annotated[str, typer.Option(help="The attribute to count")] = "",
-):
-    if type is not SEVASType.RESTRICTIONS:
-        raise NotImplementedError
-
-    all_restrictions = SEVASRestrictions(path)
-    types = defaultdict(int)
-
-    for osm_id, restrs in all_restrictions.items():
-        for res in restrs:
-            try:
-                types[getattr(res, attr)] += 1
-            except AttributeError:
-                raise AttributeError(f"Attribute {attr} does not exist on type {res.__class__.__name__}")
-
-    sorted_types = sorted(types.items(), key=lambda i: i[1], reverse=True)
-    print(f"{attr.capitalize()},COUNT")
-    for k, v in sorted_types:
-        if cutoff and v < cutoff:
-            break
-        print(f"{k},{v}")
-
-
-@app.command()
 def tags(
     path: Path,
     type: Annotated[SEVASType, typer.Option(help="The type of features")] = SEVASType.RESTRICTIONS,
 ):
+    """
+    Tool zum Anzeigen konvertierter OSM Tags auf Basis eines SEVAS Datensatzes. Unterstützt zur Zeit nur
+    Restriktionen
+    """
     if type is not SEVASType.RESTRICTIONS:
         raise NotImplementedError
 
@@ -80,19 +55,33 @@ def download(
     data_dir: Path,
     base_url: Annotated[str, typer.Argument(help="")] = "https://sevas.nrw.de/osm/sevas",
 ):
+    """
+    Lädt alle SEVAS Datensätze herunter.
+    """
     client = SEVASClient(data_dir, base_url)
     client.get_all()
 
 
 @app.command()
 def convert(
-    data_dir: Path,
-    osm_in: Path,
-    osm_out: Path,
-    base_url: Annotated[str, typer.Argument(help="")] = "https://sevas.nrw.de/osm/sevas",
+    data_dir: Annotated[
+        Path, typer.Argument(help="Das Directory, in dem sich die SEVAS Daten befinden")
+    ],
+    osm_in: Annotated[
+        Path, typer.Argument(help="Der Pfad zur OSM Datei, die als Grundlage zur Konvertierung dient")
+    ],
+    osm_out: Annotated[
+        Path,
+        typer.Argument(
+            help="Der Pfad inkl. Dateiname, an dem die resultierende OSM Datei abgelegt wird"
+        ),
+    ],
+    base_url: Annotated[
+        str, typer.Argument(help="Die Basis URL des SEVAS Web Feature Service")
+    ] = "https://sevas.nrw.de/osm/sevas",
 ):
     """
-    Maps SEVAS data onto an existing OSM file.
+    Konvertierung von SEVAS zu OSM.
     """
     provider = SEVASProvider(osm_in, osm_out, base_url, data_dir, False)
     provider.process()
@@ -102,9 +91,12 @@ def convert(
 @app.command()
 def by_id(
     path: Path,
-    id: Annotated[int, typer.Option(help="Segment_ID")] = 0,
-    type: Annotated[SEVASType, typer.Option(help="The type of features")] = SEVASType.RESTRICTIONS,
+    id: Annotated[int, typer.Option(help="Segment ID")] = 0,
+    type: Annotated[SEVASType, typer.Option(help="")] = SEVASType.RESTRICTIONS,
 ):
+    """
+    Tool zum Inspizieren einzelner SEVAS Features (unterstützt zur Zeit nur Restriktionen)
+    """
     if type is not SEVASType.RESTRICTIONS:
         raise NotImplementedError
 

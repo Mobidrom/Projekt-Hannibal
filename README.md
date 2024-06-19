@@ -24,6 +24,68 @@ Poetry installiert folgende Aliasse in der Shell:
 - sevas_utils: kann verwendet werden um SEVAS Daten herunterzuladen, zu inspizieren, und zu konvertieren
 - hannibal: der zentrale Entrypoint zum Orchestrieren komplexer Konversionen (mehr folgt)
 
+### Nutzung
+
+Von Bedeutung ist gerade erst einmal das `sevas_utils` executable mit den commands `download` und `convert`:
+
+```
+❯ sevas_utils download --help
+
+ Usage: sevas_utils download [OPTIONS] DATA_DIR [BASE_URL]
+
+ Lädt alle SEVAS Datensätze herunter.
+
+╭─ Arguments ──────────────────────────────────────────────────────────╮
+│ *    data_dir      PATH        [default: None] [required]            │
+│      base_url      [BASE_URL]  [default:                             │
+│                                https://sevas.nrw.de/osm/sevas]       │
+╰──────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                          │
+╰──────────────────────────────────────────────────────────────────────╯
+```
+
+```
+❯ sevas_utils convert --help
+
+ Usage: sevas_utils convert [OPTIONS] DATA_DIR OSM_IN OSM_OUT
+                            [BASE_URL]
+
+ Konvertierung von SEVAS zu OSM.
+
+╭─ Arguments ──────────────────────────────────────────────────────────╮
+│ *    data_dir      PATH        Das Directory, in dem sich die SEVAS  │
+│                                Daten befinden                        │
+│                                [default: None]                       │
+│                                [required]                            │
+│ *    osm_in        PATH        Der Pfad zur OSM Datei, die als       │
+│                                Grundlage zur Konvertierung dient     │
+│                                [default: None]                       │
+│                                [required]                            │
+│ *    osm_out       PATH        Der Pfad inkl. Dateiname, an dem die  │
+│                                resultierende OSM Datei abgelegt wird │
+│                                [default: None]                       │
+│                                [required]                            │
+│      base_url      [BASE_URL]  Die Basis URL des SEVAS Web Feature   │
+│                                Service                               │
+│                                [default:                             │
+│                                https://sevas.nrw.de/osm/sevas]       │
+╰──────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                          │
+╰──────────────────────────────────────────────────────────────────────╯
+
+```
+
+Eine Konvertierung für NRW könnte daher etwa so aussehen:
+
+```bash
+mkdir sevas_data
+sevas_utils download sevas_data
+wget http://download.geofabrik.de/europe/germany/nordrhein-westfalen-latest.osm.pbf -O sevas_data/nrw.pbf
+sevas_utils convert sevas_data sevas_data/nrw.pbf sevas_data/nrw_sevas.pbf
+```
+
 ### Tests
 
 Getestet wird mit `pytest`, das Starten der Test Suite könnte nicht einfacher sein:
