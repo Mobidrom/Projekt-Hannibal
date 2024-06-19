@@ -85,9 +85,10 @@ class SEVASPreferredRoads(ImmutableMixin):
                         f"Combining bi-directional entries in preferred roads: {record.osm_id}"
                     )
                 else:
-                    LOGGER.info(
-                        f"Duplicate preferred road segment, ignoring additional entry: {record.osm_id}"
-                    )
+                    pass
+                    # LOGGER.info(
+                    #     f"Duplicate preferred road segment, ignoring additional entry: {record.osm_id}"
+                    # )
                 continue
             self._map[record.osm_id] = record
             self._access_count[record.osm_id] = 0

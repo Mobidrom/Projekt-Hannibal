@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from rich import print
+
 from hannibal.io.OSM import OSMRewriter
 from hannibal.logging import LOGGER
 from hannibal.providers.SEVAS.client import SEVASClient
@@ -9,10 +11,20 @@ from hannibal.providers.SEVAS.tables.preferred_roads import SEVASPreferredRoads
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
 from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeeds
 
+START_OBJ_ID = 2**55 - 1
+
 
 class SEVASProvider:
     def __init__(
-        self, in_path: Path, out_path: Path, base_url: str, data_path: Path, download_data: bool = True
+        self,
+        in_path: Path,
+        out_path: Path,
+        base_url: str,
+        data_path: Path,
+        download_data: bool = True,
+        start_node_id: int = START_OBJ_ID,
+        start_way_id: int = START_OBJ_ID,
+        start_rel_id: int = START_OBJ_ID,
     ) -> None:
         """
         Provider class that handles the SEVAS conversion.
@@ -23,10 +35,17 @@ class SEVASProvider:
         :param data_path: Path to directory where SEVAS data will be stored.
         :param baseurl: Base URL that points to the SEVAS Web Feature Service
         :param download_data: whether or not to download SEVAS data
+        :param max_node_id: the integer value from which new node IDs will be created incrementally
+        :param max_way_id: the integer value from which new way IDs will be created incrementally
+        :param max_rel_id: the integer value from which new relation IDs will be created incrementally
         """
 
         self._in_path = in_path
         self._out_path = out_path
+
+        self._next_node_id = start_node_id
+        self._next_way_id = start_way_id
+        self._next_rel_id = start_rel_id
 
         # download data
         if download_data:
@@ -59,8 +78,15 @@ class SEVASProvider:
         """
         LOGGER.info(f"Processing OSM file: {self._in_path}")
         self._rewriter.apply_file(self._in_path)
-        self._rewriter.close()
 
-    @property
-    def restrictions(self):
-        return self._rewriter._restrictions
+        # write any new geometries (low emission zones, traffic signs)
+        next_node_id = self._rewriter.write_low_emission_zones(
+            self._next_node_id, self._next_way_id, self._next_rel_id
+        )
+        self._next_node_id = next_node_id
+
+        self._rewriter.close()
+        self._rewriter.merge()
+
+    def report(self):
+        print(self._rewriter._reporter)

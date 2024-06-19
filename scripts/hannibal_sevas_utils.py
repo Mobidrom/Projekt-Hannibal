@@ -96,6 +96,7 @@ def convert(
     """
     provider = SEVASProvider(osm_in, osm_out, base_url, data_dir, False)
     provider.process()
+    provider.report()
 
 
 @app.command()
