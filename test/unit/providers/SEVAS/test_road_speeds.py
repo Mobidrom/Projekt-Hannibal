@@ -1,7 +1,7 @@
 import pytest
 
 from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeedRecord, SEVASRoadSpeeds
-from test.providers.SEVAS.constants import (
+from test.unit.providers.SEVAS.constants import (
     POLYGON_SEGMENTS_PATH,
 )
 

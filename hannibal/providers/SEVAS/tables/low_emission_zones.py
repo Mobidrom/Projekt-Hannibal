@@ -1,9 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generator, List
-
-from osmium.osm import Tag as OsmiumTag
+from typing import Any, Generator, List, Mapping
 
 from hannibal.io.shapefile import load_shp
 from hannibal.providers.SEVAS.constants import SEVASZoneType
@@ -23,18 +21,39 @@ class SEVASLEZType(str, Enum):
 @dataclass
 class SEVAS_LEZ_Record:
     zone_id: int
-    typ: SEVASZoneType.SPEED
+    typ: SEVASZoneType.LEM
     wert: SEVASLEZType
     gemeinde: str
     kreis: str
     regbezirk: str
     shape: List[List[List[int]]]
 
-    def tag(self) -> List[OsmiumTag]:
+    @property
+    def __geo_interface__(self):
+        """
+        Interface for other geospatial libraries, such as shapely, geopandas, etc.
+        """
+        return {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[(p[1], p[0]) for p in r] for r in self.shape],
+            },
+            "properties": {
+                "zone_id": self.zone_id,
+                "typ": self.typ.value,
+                "wert": self.wert.value,
+                "gemeinde": self.gemeinde,
+                "kreis": self.kreis,
+                "regbezirk": self.regbezirk,
+            },
+        }
+
+    def tags(self) -> Mapping[str, str]:
         """
         Get the OSM tags for the low emission zone relation.
         """
-        return OsmiumTag("boundary", "low_emission_zone")
+        return {"type": "boundary", "boundary": "low_emission_zone"}
 
 
 def SevasLEZFactory(feature: Any) -> SEVAS_LEZ_Record | None:

@@ -12,6 +12,7 @@ from hannibal.providers.SEVAS.provider import SEVASProvider
 sys.path.append("../hannibal")
 sys.path.append("../")
 sys.path.append("./")
+
 # noqa
 from hannibal.logging import init_logger
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
