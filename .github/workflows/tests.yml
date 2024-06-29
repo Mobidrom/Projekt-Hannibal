@@ -58,6 +58,8 @@ jobs:
 
       - name: pytest
         run: |
+          sudo apt update --yes
+          sudo apt install --yes --quiet osmium-tool
           source .venv/bin/activate
           pytest
         env:
