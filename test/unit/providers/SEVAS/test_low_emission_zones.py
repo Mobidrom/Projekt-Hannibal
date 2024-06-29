@@ -1,11 +1,10 @@
 import pytest
-from osmium.osm import Tag as OsmiumTag
 
 from hannibal.providers.SEVAS.tables.low_emission_zones import SEVAS_LEZ
-from test.providers.SEVAS.constants import LEZ_PATH
+from test.unit.providers.SEVAS.constants import LEZ_PATH
 
 TEST_LEZ = {3191: {"shape_length": 170, "wert": "1031-52", "typ": "umweltzone"}}
-TEST_LOW_EMISSION_TAGS = {3191: OsmiumTag("boundary", "low_emission_zone")}
+TEST_LOW_EMISSION_TAGS = {3191: {"type": "boundary", "boundary": "low_emission_zone"}}
 
 
 @pytest.fixture
@@ -46,5 +45,5 @@ def test_simple_tags(sevas_lez: SEVAS_LEZ, zone_id: int):
 
     lez = [f for f in sevas_lez.features() if f.zone_id == zone_id][0]
 
-    assert lez.tag().k == TEST_LOW_EMISSION_TAGS[zone_id].k
-    assert lez.tag().v == TEST_LOW_EMISSION_TAGS[zone_id].v
+    for k, v in lez.tags().items():
+        assert v == TEST_LOW_EMISSION_TAGS[zone_id][k]

@@ -25,7 +25,7 @@ RelationLike = Relation | mutable.Relation
 OSM_BASIC = {
     "version": 1,
     "changeset": 1,
-    "timestamp": "2000-08-16T00:00:00Z",
+    "timestamp": "2004-08-16T00:00:00Z",
 }  # https://wiki.openstreetmap.org/w/index.php?title=History_of_OpenStreetMap&oldid=1892207#Founding_and_Early_History
 
 
@@ -129,6 +129,9 @@ class OSMRewriter(SimpleHandler):
         :param way: an unmutable way from the input file
         """
         tags: Mapping[str, str] = dict(way.tags)
+
+        # for each layer, we compare the number of tags before and after filtering to report
+        # the number of cleaned tags
         n_tags = len(tags)
         if self._restrictions and self._restrictions[way.id]:
             tags = {
@@ -202,6 +205,10 @@ class OSMRewriter(SimpleHandler):
 
         :return: the next unused node ID to be used for traffic signs.
         """
+
+        # low emission zones may be None if no lez layer was found
+        if not self._low_emission_zones:
+            return start_node_id
 
         nid = start_node_id
         wid = start_way_id

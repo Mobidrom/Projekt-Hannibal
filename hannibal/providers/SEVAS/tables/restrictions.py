@@ -23,7 +23,7 @@ from hannibal.providers.SEVAS.constants import (
     SEVASDir,
     SEVASRestrType,
 )
-from hannibal.util.data import str_to_bool
+from hannibal.util.data import bool_to_str, str_to_bool
 from hannibal.util.exception import HannibalSchemaError
 from hannibal.util.immutable import ImmutableMixin
 
@@ -79,7 +79,7 @@ class SEVASRestrRecord:
     osm_id: int
     osm_vers: int
     fahrtri: SEVASDir
-    typ: int
+    typ: SEVASRestrType
     wert: str | None
     tage_einzl: str | None
     tage_grppe: str | None
@@ -93,6 +93,31 @@ class SEVASRestrRecord:
 
     # collect the additional signs in a separate map
     vz: Mapping[RestrVZ, bool]
+
+    def as_dict(self) -> Mapping[str, str | int | bool | None]:
+        """
+        Return the record as a dict. Used to create synthetic test data.
+        """
+        return {
+            "segment_id": self.segment_id,
+            "restrkn_id": self.restrkn_id,
+            "name": self.name or "",
+            "osm_id": self.osm_id,
+            "osm_vers": self.osm_vers,
+            "fahrtri": self.fahrtri.value,
+            "typ": self.typ.value,
+            "wert": self.wert or "",
+            "tage_einzl": self.tage_einzl or "",
+            "tage_grppe": self.tage_grppe or "",
+            "zeit1_von": self.zeit1_von or "",
+            "zeit1_bis": self.zeit1_bis or "",
+            "zeit2_von": self.zeit2_von or "",
+            "zeit2_bis": self.zeit2_bis or "",
+            "gemeinde": self.gemeinde,
+            "kreis": self.kreis,
+            "regbezirk": self.regbezirk,
+            **{k.value: bool_to_str(v) for k, v in self.vz.items()},
+        }
 
     def get_vz_items_sorted(self) -> Tuple[RestrVZ, bool]:
         return sorted(self.vz.items(), key=lambda i: str(i[0]))

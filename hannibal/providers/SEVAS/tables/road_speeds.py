@@ -67,13 +67,30 @@ class SEVASRoadSpeedRecord:
     segment_id: int
     zone_id: int
     name: str | None
-    osm_vers: int
+    osm_vers: str
     osm_id: int
     typ: SEVASZoneType.SPEED
     wert: SEVASRoadSpeedType
     gemeinde: str
     kreis: str
     regbezirk: str
+
+    def as_dict(self) -> Mapping[str, str | int]:
+        """
+        Returns the road speed as a dictionary. Used for creating test data.
+        """
+        return {
+            "segment_id": self.segment_id,
+            "zone_id": self.zone_id,
+            "name": self.name or "",
+            "osm_vers": self.osm_vers,
+            "osm_id": self.osm_id,
+            "typ": self.typ.value,
+            "wert": self.wert.value,
+            "gemeinde": self.gemeinde,
+            "kreis": self.kreis,
+            "regbezirk": self.regbezirk,
+        }
 
     def tags(self) -> Mapping[str, str]:
         """

@@ -2,7 +2,7 @@ import pytest
 
 from hannibal.providers.SEVAS.constants import CommonRestrSignatures
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
-from test.providers.SEVAS.constants import (
+from test.unit.providers.SEVAS.constants import (
     RESTRICTION_PATH,
     TEST_RESTRICTIONS,
 )

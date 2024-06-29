@@ -15,6 +15,12 @@ class SEVASPreferredRoadRecord:
     osm_id: int
     fahrtri: SEVASDir
 
+    def as_dict(self) -> Mapping[str, str | int]:
+        """
+        Get the record as a dictionary
+        """
+        return {"osm_id": self.osm_id, "fahrtri": self.fahrtri.value}
+
     def tag(self) -> Mapping[str, str]:
         """
         Get the OSM tag for this preferred road segment.
