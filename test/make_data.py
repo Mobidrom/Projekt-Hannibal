@@ -229,6 +229,51 @@ def create_low_emission_zone_dataset():
     r.write_low_emission_zones(low_emission_zones)
 
 
+def create_polygon_reader_data():
+    """
+    Creates data to test the polygon reader with.
+    """
+
+    path = BASE_DATA_DIR / "polygon_reader_test"
+    path.mkdir(exist_ok=True)
+
+    ascii_map = """
+1----------------2
+|      I         |
+|      |         |
+|      A---B---C-+--D---E---F
+|                |
+|   G--H         |
+|                |
+4----------------3
+"""
+    # don't really need the ways just check they're still there after the conversion
+    ways = {
+        "AB": (0, {"highway": "tertiary"}),
+        "BC": (1, {"highway": "tertiary"}),
+        "CD": (2, {"highway": "tertiary"}),
+        "DE": (3, {"highway": "tertiary"}),
+        "EF": (5, {"highway": "tertiary"}),
+        "GH": (6, {"highway": "tertiary"}),
+        "AI": (7, {"highway": "tertiary"}),
+        "12341": (8, {"boundary": "administrative"}),
+    }
+
+    relations = [
+        SynthRelation(
+            0,
+            [SynthMember("12341", MemberType.WAY, MemberRole.OUTER)],
+            {
+                "boundary": "administrative",
+                "type": "boundary",
+            },
+        )
+    ]
+
+    s = OSMSynthesizer(ascii_map, ways=ways, relations=relations)
+    s.to_file(path / "map.pbf")
+
+
 if __name__ == "__main__":
     """
     If this module is called directly, this will create all the fake data sets in test/data/...
@@ -236,3 +281,4 @@ if __name__ == "__main__":
     create_restriction_dataset()
     create_preferred_road_dataset()
     create_low_emission_zone_dataset()
+    create_polygon_reader_data()

@@ -2,11 +2,15 @@ import shlex
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Mapping, Tuple
+from typing import Dict, List, Mapping, Tuple
 
-from osmium import Node, Relation, SimpleHandler, SimpleWriter, Way
+from osmium import SimpleHandler, SimpleWriter
+from osmium.geom import WKBFactory
 from osmium.osm import RelationMember, mutable
+from osmium.osm.types import Node, Relation, Way
+from shapely import wkb
 
+from hannibal.config.HannibalConfig import TagCleanConfig
 from hannibal.logging import LOGGER
 from hannibal.providers.SEVAS.constants import REMOVE_KEYS, SEVASLayer
 from hannibal.providers.SEVAS.tables.low_emission_zones import SEVAS_LEZ
@@ -50,10 +54,20 @@ class OSMRewriter(SimpleHandler):
         road_speeds: SEVASRoadSpeeds | None,
         low_emission_zones: SEVAS_LEZ | None,
         # traffic_signs: SEVASTrafficSigns | None
+        tag_clean_config: TagCleanConfig | None = None,
     ) -> None:
         """
         OSM Handler that rewrites OSM objects from one file to another, modifying existing
         and creating new objects based on passed SEVAS data.
+
+        :param in_path: path to the input OSM file
+        :param out_path: path to which the new OSM file will be written
+        :param restrictions: a SEVAS Restrictions instance
+        :param preferred_roads: a SEVAS Preferred roads instance
+        :param road_speeds: a SEVAS road speeds instance
+        :param low_emission_zones: a SEVAS low emission zones instance
+        :param tag_clean_config: a config containing information on which tags to remove on OSM objects
+            intersecting with given polygons
         """
         super(OSMRewriter, self).__init__()
 
@@ -77,8 +91,21 @@ class OSMRewriter(SimpleHandler):
         self._traffic_signs = None
         # self._traffic_signs = traffic_signs
 
+        self._tag_clean_config = tag_clean_config
+        self._wkb_fac = WKBFactory()
         # keep some stats
-        self._reporter = defaultdict(int)
+
+        self._reporter = dict()
+
+        # we categorize the operations that the rewriter performs into
+        # the following categories:
+        #  1. adding tags
+        #  2. overriding tags (meaning adding tags where related tags already exist)
+        #  3. cleaning tags (removing tags regardless of whether related tags will be added from SEVAS
+        #     data, but based on the clean_tags config options)
+        self._reporter["added"] = defaultdict(int)
+        self._reporter["overridden"] = defaultdict(int)
+        self._reporter["cleaned"] = defaultdict(int)
 
     def merge(self, delete_tmps: bool = True):
         """
@@ -110,10 +137,19 @@ class OSMRewriter(SimpleHandler):
 
         :param node: an unmutable node from the input file
         """
+        tags: Mapping[str, str] = dict(node.tags)
+
+        # first check if tags should be cleaned based on
+        # whether the node is inside a specified polygon
+        if self._intersects_tag_filter(node):
+            d = self._filter_tags(tags)
+            self._merge_reporter_stats(d)
+
+        # TODO: add traffic sign support
         if self._traffic_signs:
-            is_low_emission_zone = any([k == "traffic_sign" for k, _ in node.tags])
-            if is_low_emission_zone:
-                self._reporter["removed_traffic_signs"] += 1
+            is_traffic_sign = any([k == "traffic_sign" for k, _ in node.tags])
+            if is_traffic_sign:
+                self._reporter["overridden"]["traffic_signs"] += 1
                 return
 
         mut = node.replace()
@@ -130,6 +166,10 @@ class OSMRewriter(SimpleHandler):
         """
         tags: Mapping[str, str] = dict(way.tags)
 
+        if self._intersects_tag_filter(way):
+            d = self._filter_tags(tags)
+            self._merge_reporter_stats(d)
+
         # for each layer, we compare the number of tags before and after filtering to report
         # the number of cleaned tags
         n_tags = len(tags)
@@ -137,9 +177,9 @@ class OSMRewriter(SimpleHandler):
             tags = {
                 k: v for k, v in tags.items() if not k.startswith(REMOVE_KEYS[SEVASLayer.RESTRICTIONS])
             }
-            self._reporter["cleaned_restrictions"] += int(n_tags != len(tags))
+            self._reporter["overridden"]["restrictions"] += int(n_tags != len(tags))
             for restriction in self._restrictions[way.id]:
-                self._reporter["restrictions"] += 1
+                self._reporter["added"]["restrictions"] += 1
                 tags.update(restriction.tags())
 
         n_tags = len(tags)
@@ -149,8 +189,8 @@ class OSMRewriter(SimpleHandler):
                 for k, v in tags.items()
                 if not k.startswith(REMOVE_KEYS[SEVASLayer.PREFERRED_ROADS])
             }
-            self._reporter["cleaned_hgv_designated"] += int(n_tags != len(tags))
-            self._reporter["preferred_roads"] += 1
+            self._reporter["overridden"]["hgv_designated"] += int(n_tags != len(tags))
+            self._reporter["added"]["hgv_designated"] += 1
             p = self._preferred_roads[way.id]
             tags.update(p.tag())
 
@@ -159,8 +199,8 @@ class OSMRewriter(SimpleHandler):
             tags = {
                 k: v for k, v in tags.items() if not k.startswith(REMOVE_KEYS[SEVASLayer.ROAD_SPEEDS])
             }
-            self._reporter["cleaned_speeds"] += int(n_tags != len(tags))
-            self._reporter["road_speeds"] += 1
+            self._reporter["overridden"]["road_speeds"] += int(n_tags != len(tags))
+            self._reporter["added"]["road_speeds"] += 1
             rs = self._road_speeds[way.id]
             strictest: SEVASRoadSpeedRecord = rs[0]
             for road_speed in rs:
@@ -170,6 +210,10 @@ class OSMRewriter(SimpleHandler):
 
         mut = way.replace(tags=tags)
         self._ways_writer.add_way(mut)
+
+    def _merge_reporter_stats(self, d: Dict[str, int], type: str = "cleaned") -> None:
+        for k, v in d.items():
+            self._reporter[type][k] += v
 
     def relation(self, rel: Relation) -> None:
         """
@@ -182,12 +226,15 @@ class OSMRewriter(SimpleHandler):
         :param relation: an unmutable relation from the input file
         """
 
+        # TODO: no spatial check for tag filtering implemented at this point,
+        # as relations have an ambiguous geometry type
+
         if self._low_emission_zones:
             is_low_emission_zone = any(
                 [True if k == "boundary" and v == "low_emission_zone" else False for k, v in rel.tags]
             )
             if is_low_emission_zone:
-                self._reporter["removed_low_emission_zones"] += 1
+                self._reporter["overridden"]["low_emission_zones"] += 1
                 return
 
         mut = rel.replace()
@@ -227,7 +274,7 @@ class OSMRewriter(SimpleHandler):
                 node_list.append(node_list[0])
             self._create_way(wid, node_list)
             self._create_relation(rid, [wid], {"boundary": "low_emission_zone"})
-            self._reporter["low_emission_zones"] += 1
+            self._reporter["added"]["low_emission_zones"] += 1
             wid += 1
             rid += 1
 
@@ -292,6 +339,37 @@ class OSMRewriter(SimpleHandler):
         except RuntimeError:
             LOGGER.error(f"Error adding relation {id}:\nmembers: {members}\ntags: {tags}")
             raise
+
+    def _intersects_tag_filter(self, o: Way | Node | Relation) -> bool:
+        if not self._tag_clean_config:
+            return False
+        wkb_string = None
+        if isinstance(o, Node):
+            wkb_string = self._wkb_fac.create_point(o)
+        elif isinstance(o, Way):
+            wkb_string = self._wkb_fac.create_linestring(o)
+        else:
+            print(type(o))
+            raise ValueError(f"Not supporting intersections for object type {o.__class__.__name__}")
+
+        geom = wkb.loads(wkb_string, hex=True)
+        return self._tag_clean_config.spatial_check(geom)
+
+    def _filter_tags(self, tags: Dict[str, str]) -> Dict[str, int]:
+        """
+        Removes entries for tags to be filtered out. Mutates the tag dictionary.
+
+        :param tags: the tag dictionary to be mutated
+        :return: the number of tags that were removed
+        """
+
+        d = defaultdict(int)
+        for k in self._tag_clean_config.keys:
+            r = tags.pop(k, None)
+            if r:
+                d[k] += 1
+
+        return d
 
     def _create_member_list(self, members: List[int]) -> RelationMember:
         return [RelationMember(m, "w", "outer") for m in members]

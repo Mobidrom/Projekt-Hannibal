@@ -2,6 +2,7 @@ from pathlib import Path
 
 from rich import print
 
+from hannibal.config.HannibalConfig import TagCleanConfig
 from hannibal.io.OSM import OSMRewriter
 from hannibal.logging import LOGGER
 from hannibal.providers.SEVAS.client import SEVASClient
@@ -27,6 +28,7 @@ class SEVASProvider:
         start_node_id: int = START_OBJ_ID,
         start_way_id: int = START_OBJ_ID,
         start_rel_id: int = START_OBJ_ID,
+        tag_clean_config: TagCleanConfig | None = None,
     ) -> None:
         """
         Provider class that handles the SEVAS conversion.
@@ -40,6 +42,8 @@ class SEVASProvider:
         :param max_node_id: the integer value from which new node IDs will be created incrementally
         :param max_way_id: the integer value from which new way IDs will be created incrementally
         :param max_rel_id: the integer value from which new relation IDs will be created incrementally
+        :param tag_clean_config: optionally, a config can be parsed that contains information on which
+            tags to remove on objects inside given polygons
         """
 
         self._in_path = in_path
@@ -85,7 +89,13 @@ class SEVASProvider:
         # traffic_signs = SEVASTrafficSigns
 
         self._rewriter: OSMRewriter = OSMRewriter(
-            in_path, out_path, restrictions, preferred_roads, road_speeds, low_emission_zones
+            in_path,
+            out_path,
+            restrictions,
+            preferred_roads,
+            road_speeds,
+            low_emission_zones,
+            tag_clean_config,
         )
 
     def process(self):
@@ -93,7 +103,7 @@ class SEVASProvider:
         Starts the actual conversion process by applying the base OSM file to the rewriter
         """
         LOGGER.info(f"Processing OSM file: {self._in_path}")
-        self._rewriter.apply_file(self._in_path)
+        self._rewriter.apply_file(self._in_path, locations=True)
 
         # write any new geometries (low emission zones, traffic signs)
         next_node_id = self._rewriter.write_low_emission_zones(
