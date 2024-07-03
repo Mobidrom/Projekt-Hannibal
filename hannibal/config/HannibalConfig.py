@@ -1,7 +1,7 @@
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Mapping, Self, Type
+from typing import List, Mapping, Type
 
 import numpy as np
 from shapely import LineString, MultiPolygon, Point, Polygon, STRtree, unary_union
@@ -10,6 +10,13 @@ from hannibal.io.PolygonReader import PolygonReader
 from hannibal.io.YAML import load_yaml
 from hannibal.logging import LOGGER
 from hannibal.providers import HannibalProvider
+
+try:
+    from typing import Self
+except ImportError:
+    from typing import TypeVar
+
+    Self = TypeVar("Self")
 
 
 @dataclass
