@@ -28,7 +28,7 @@ REMOVE_KEYS = {
         "hgv",
         "traffic_sign",
     ),
-    SEVASLayer.PREFERRED_ROADS: ("hgv"),
+    SEVASLayer.PREFERRED_ROADS: ("hgv",),
     SEVASLayer.ROAD_SPEEDS: ("maxspeed", "maxspeed", "zone:traffic", "source:maxspeed"),
 }
 
