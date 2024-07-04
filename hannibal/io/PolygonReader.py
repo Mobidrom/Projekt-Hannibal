@@ -16,6 +16,7 @@ class PolygonReader(SimpleHandler):
         super().__init__()
         self._id = id
         self._geom: Polygon | None = None
+        self._name: str | None = None
         self._wkb_fac = WKBFactory()
 
     def area(self, a: Area):
@@ -24,6 +25,8 @@ class PolygonReader(SimpleHandler):
                 LOGGER.error(f"More than one area found for id {self._id}")
             shape = self._wkb_fac.create_multipolygon(a)
             self._geom = wkb.loads(shape).geoms[0]
+            self._name = a.tags.get("name", None)
+            LOGGER.info(f"Relation mit ID gefunden: {self._name}")
 
     @property
     def geometry(self) -> Polygon | None:
