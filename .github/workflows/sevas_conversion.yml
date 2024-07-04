@@ -1,0 +1,62 @@
+name: "SEVAS Konversion"
+
+on:
+  workflow_dispatch:
+    inputs:
+      osm_url:
+        description: "URL zu einer OSM PBF Datei, z. B. http://download.geofabrik.de/europe/germany/nordrhein-westfalen-latest.osm.pbf"
+        required: true
+        default: "http://download.geofabrik.de/europe/germany/nordrhein-westfalen-latest.osm.pbf"
+      sevas_url:
+        description: "URL zum SEVAS WFS Client"
+        required: true
+        default: "https://sevas.nrw.de/osm/sevas"
+      clean_tags:
+        description: "Komma separierte tags"
+
+jobs:
+  install:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        python_version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python_version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: pip
+
+      - uses: actions/cache@v3
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: SEVAS Konversion
+        run: |
+          sudo apt update --yes
+          sudo apt install --yes --quiet osmium-tool
+          source .venv/bin/activate
+          mkdir sevas_data
+          sevas_utils download sevas_data ${{ github.event.inputs.sevas_url }} 
+          sevas_utils convert sevas_data test/data/koeln.pbf sevas_data/koeln_sevas.pbf -t maxspeed --filter-relation 2613780
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
