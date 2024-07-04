@@ -170,6 +170,8 @@ class OSMRewriter(SimpleHandler):
             d = self._filter_tags(tags)
             self._merge_reporter_stats(d)
 
+        # TODO: way segmentieren
+
         # for each layer, we compare the number of tags before and after filtering to report
         # the number of cleaned tags
         n_tags = len(tags)

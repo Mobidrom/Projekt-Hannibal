@@ -10,6 +10,7 @@ from hannibal.providers.SEVAS.constants import (
 from hannibal.providers.SEVAS.tables.low_emission_zones import SEVAS_LEZ_Record, SEVASLEZType
 from hannibal.providers.SEVAS.tables.preferred_roads import SEVASPreferredRoadRecord
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrRecord
+from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeedRecord, SEVASRoadSpeedType
 from test import BASE_DATA_DIR
 from test.synthesizers.osm import MemberRole, MemberType, OSMSynthesizer, SynthMember, SynthRelation
 from test.synthesizers.sevas import SEVASSynthesizer
@@ -49,6 +50,24 @@ def restriction_factory(
         "test",
         "test",
         SEVASSynthesizer.make_vz(*vz),
+    )
+
+
+def road_speed_factory(
+    osm_id: int,
+    wert: SEVASRoadSpeedType,
+):
+    return SEVASRoadSpeedRecord(
+        segment_id=0,
+        zone_id=0,
+        name="blah",
+        osm_vers="0",
+        osm_id=osm_id,
+        typ=SEVASZoneType.SPEED,
+        wert=wert,
+        gemeinde="Köln",
+        kreis="Köln",
+        regbezirk="Köln",
     )
 
 
@@ -136,6 +155,43 @@ W---N---M---K--L----O
     ]
 
     r.write_segment_features(restrictions)
+
+
+def create_road_speeds_dataset():
+    """
+    Creates a synthetic data set consisting of
+        1. OSM PBF
+        2. SEVAS road speed segments (dt. Tempozonen Segmente) that map onto the OSM data
+    """
+
+    path = BASE_DATA_DIR / "road_speeds_test"
+    path.mkdir(exist_ok=True)
+
+    ascii_map = """
+A---B---C---D---E---F
+"""
+
+    ways = {
+        "AB": (0, {"highway": "tertiary"}),
+        "BC": (1, {"highway": "tertiary"}),
+        "CD": (2, {"highway": "tertiary", "maxspeed": "15"}),
+        "DE": (3, {"highway": "tertiary"}),
+        "EF": (4, {"highway": "tertiary", "maxweight": "3.5"}),
+    }
+
+    s = OSMSynthesizer(ascii_map, ways=ways)
+    s.to_file(path / "map.pbf")
+    r = SEVASSynthesizer(path)
+
+    preferred_roads = [
+        road_speed_factory(0, SEVASRoadSpeedType.PEDESTRIAN),
+        road_speed_factory(1, SEVASRoadSpeedType.CALM_TRAFFIC),
+        road_speed_factory(2, SEVASRoadSpeedType.S20),
+        road_speed_factory(3, SEVASRoadSpeedType.S30),
+        road_speed_factory(4, SEVASRoadSpeedType.URBAN),
+    ]
+
+    r.write_segment_features(preferred_roads)
 
 
 def create_preferred_road_dataset():

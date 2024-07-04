@@ -51,7 +51,3 @@ def test_object_count(directory: str, tag_counts: Mapping[Tuple[str, str, str], 
     counter.apply_file(provider_args["out_path"])
     for t, ec in tag_counts.items():
         assert (r := counter.counter[t]) == ec, f"Tag count incorrect for {t}, expected {ec}, found {r}"
-
-    # count the number of objects
-    # count the occurences of certain tags
-    # assert certain tag values
