@@ -1,6 +1,6 @@
 # Hannibal
 
-![example workflow](https://github.com/Mobirdrom/Projekt-Hannibal/actions/workflows/tests.yml/badge.svg)
+![test badge](https://github.com/Mobidrom/Projekt-Hannibal/actions/workflows/tests.yml/badge.svg)
 
 Dieses Projekt hat zum Ziel die Beschränkungen und Vorrangruten für Schwerlastverkehre, welche vom [SEVAS-Projekt](https://sevas.nrw.de/) für NRW bereitgestellt werden so aufzubereiten, dass sie für das Routing mit OSM basierten Routing-Engines verwendet werden können. Die so aufbereiteten Daten werden in einer Instanz der [Valhalla Routing Engine](https://github.com/valhalla/valhalla/) und der [Valhalla Web App](https://github.com/gis-ops/valhalla-app) verwendet werden, um LKW-Routen planen sowie die Auswirkungen von Beschränkungen simulieren zu können.
 
