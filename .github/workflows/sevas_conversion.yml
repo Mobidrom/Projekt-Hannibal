@@ -55,6 +55,8 @@ jobs:
           sudo apt update --yes
           sudo apt install --yes --quiet osmium-tool
           source .venv/bin/activate
-          pytest
+          mkdir sevas_data
+          sevas_utils download sevas_data ${{ github.event.inputs.sevas_url }} 
+          sevas_utils convert sevas_data test/data/koeln.pbf sevas_data/koeln_sevas.pbf -t maxspeed --filter-relation 2613780
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
