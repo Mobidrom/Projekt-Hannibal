@@ -64,9 +64,9 @@ class HannibalConfig:
                 providers[HannibalProvider(prov.lower())] = provider_conf
 
             osm_base_dict = conf["osm_base"]
-            osm_base_conf = OsmBaseConfig(osm_base_dict.get("path"), osm_base_dict.get("url"))
+            osm_base_conf = OsmBaseConfig(Path(osm_base_dict.get("path")), osm_base_dict.get("url"))
 
-            output_config = OutputConfig(conf["output"]["path"])
+            output_config = OutputConfig(Path(conf["output"]["path"]))
 
             return cls(providers, osm_base_conf, output_config)
 

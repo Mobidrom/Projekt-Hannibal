@@ -61,6 +61,6 @@ jobs:
           sudo apt update --yes
           sudo apt install --yes --quiet osmium-tool
           source .venv/bin/activate
-          pytest
+          pytest --cov=hannibal
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
