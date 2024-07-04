@@ -15,7 +15,7 @@ on:
         description: "Komma separierte tags"
 
 jobs:
-  install:
+  convert:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -64,5 +64,5 @@ jobs:
       - name: Archiviere konvertierte OSM Datei
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage-report
+          name: sevas-osm
           path: sevas_konvertiert.pbf
