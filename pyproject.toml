@@ -17,16 +17,19 @@ osmium = "^3.7.0"
 dbfread = "^2.0.7"
 pyyaml = "^6.0.1"
 typer = "^0.12.3"
+fiona = "^1.9.6"
+numpy = "^2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.7.1"
-pytest = "^8.2.2"
 ruff = "^0.4.8"
+pytest = "^8.2.2"
+geopandas = "^1.0.0"
+pytest-cov = "^5.0.0"
 
 
 [tool.poetry.group.notebook.dependencies]
 ipykernel = "^6.29.4"
-geopandas = "^0.14.4"
 
 [build-system]
 requires = ["poetry-core"]

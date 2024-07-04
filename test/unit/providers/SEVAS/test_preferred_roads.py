@@ -1,7 +1,7 @@
 import pytest
 
 from hannibal.providers.SEVAS.tables.preferred_roads import SEVASPreferredRoadRecord, SEVASPreferredRoads
-from test.providers.SEVAS.constants import (
+from test.unit.providers.SEVAS.constants import (
     PREFERRED_ROADS_PATH,
 )
 

@@ -1,26 +1,25 @@
-name: tests
+name: "SEVAS Konversion"
 
 on:
-  push:
-    branches:
-      - "main"
-    paths-ignore:
-      - ".gitignore"
-      - "**.md"
-      - "**.rst"
-  pull_request:
-    branches:
-      - main
-    paths-ignore:
-      - ".gitignore"
-      - "**.md"
+  workflow_dispatch:
+    inputs:
+      osm_url:
+        description: "URL zu einer OSM PBF Datei, z. B. http://download.geofabrik.de/europe/germany/nordrhein-westfalen-latest.osm.pbf"
+        required: true
+        default: "http://download.geofabrik.de/europe/germany/nordrhein-westfalen-latest.osm.pbf"
+      sevas_url:
+        description: "URL zum SEVAS WFS Client"
+        required: true
+        default: "https://sevas.nrw.de/osm/sevas"
+      clean_tags:
+        description: "Komma separierte tags"
 
 jobs:
-  build:
+  install:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        python_version: ["3.10", "3.11", "3.12"]
+        python_version: "3.12"
     steps:
       - uses: actions/checkout@v3
 
@@ -51,12 +50,7 @@ jobs:
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root
 
-      - name: style & lint checks
-        run: |
-          source .venv/bin/activate
-          pre-commit run --all-files --color=always
-
-      - name: pytest
+      - name: SEVAS Konversion
         run: |
           sudo apt update --yes
           sudo apt install --yes --quiet osmium-tool

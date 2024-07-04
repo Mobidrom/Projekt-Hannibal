@@ -2,6 +2,7 @@ from pathlib import Path
 
 from rich import print
 
+from hannibal.config.HannibalConfig import TagCleanConfig
 from hannibal.io.OSM import OSMRewriter
 from hannibal.logging import LOGGER
 from hannibal.providers.SEVAS.client import SEVASClient
@@ -11,7 +12,9 @@ from hannibal.providers.SEVAS.tables.preferred_roads import SEVASPreferredRoads
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
 from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeeds
 
-START_OBJ_ID = 2**55 - 1
+# should be fine for another couple of years
+# just increment in case of ID collisions
+START_OBJ_ID = 2**45 - 1
 
 
 class SEVASProvider:
@@ -25,6 +28,7 @@ class SEVASProvider:
         start_node_id: int = START_OBJ_ID,
         start_way_id: int = START_OBJ_ID,
         start_rel_id: int = START_OBJ_ID,
+        tag_clean_config: TagCleanConfig | None = None,
     ) -> None:
         """
         Provider class that handles the SEVAS conversion.
@@ -38,6 +42,8 @@ class SEVASProvider:
         :param max_node_id: the integer value from which new node IDs will be created incrementally
         :param max_way_id: the integer value from which new way IDs will be created incrementally
         :param max_rel_id: the integer value from which new relation IDs will be created incrementally
+        :param tag_clean_config: optionally, a config can be parsed that contains information on which
+            tags to remove on objects inside given polygons
         """
 
         self._in_path = in_path
@@ -60,16 +66,36 @@ class SEVASProvider:
 
         # create mappings OSM_ID -> sevas_records
         # to overwrite tags of existing objects
-        restrictions = SEVASRestrictions(self._restrictions_path)
-        preferred_roads = SEVASPreferredRoads(self._preferred_roads_path)
-        road_speeds = SEVASRoadSpeeds(self._polygons_segments_path)
 
-        # read shapefiles from which new objects will be created
-        low_emission_zones = SEVAS_LEZ(self._polygons_path)
+        # these can be none, if the respective file could not be found
+        restrictions, preferred_roads, road_speeds, low_emission_zones = None, None, None, None
+        if self._restrictions_path.exists():
+            LOGGER.info("Found restrictions.")
+            restrictions = SEVASRestrictions(self._restrictions_path)
+
+        if self._preferred_roads_path.exists():
+            LOGGER.info("Found preferred road segments.")
+            preferred_roads = SEVASPreferredRoads(self._preferred_roads_path)
+
+        if self._polygons_segments_path.exists():
+            LOGGER.info("Found road speed segments.")
+            road_speeds = SEVASRoadSpeeds(self._polygons_segments_path)
+
+        if self._polygons_path.exists():
+            LOGGER.info("Found low emission zones.")
+            # read shapefiles from which new objects will be created
+            low_emission_zones = SEVAS_LEZ(self._polygons_path)
+
         # traffic_signs = SEVASTrafficSigns
 
         self._rewriter: OSMRewriter = OSMRewriter(
-            in_path, out_path, restrictions, preferred_roads, road_speeds, low_emission_zones
+            in_path,
+            out_path,
+            restrictions,
+            preferred_roads,
+            road_speeds,
+            low_emission_zones,
+            tag_clean_config,
         )
 
     def process(self):
@@ -77,7 +103,7 @@ class SEVASProvider:
         Starts the actual conversion process by applying the base OSM file to the rewriter
         """
         LOGGER.info(f"Processing OSM file: {self._in_path}")
-        self._rewriter.apply_file(self._in_path)
+        self._rewriter.apply_file(self._in_path, locations=True)
 
         # write any new geometries (low emission zones, traffic signs)
         next_node_id = self._rewriter.write_low_emission_zones(
