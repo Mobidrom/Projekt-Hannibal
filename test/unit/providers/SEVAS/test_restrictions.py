@@ -46,8 +46,8 @@ def test_number_of_restrictions(sevas_restrictions: SEVASRestrictions):
     """
     Gets a Restriction table object and tests the number of total restrictions in there.
     """
-    assert sum([len(way) for _, way in sevas_restrictions.items()]) == 865
-    assert sum([len(way) for way in sevas_restrictions.values()]) == 865
+    assert sum([len(way) for _, way in sevas_restrictions.items()]) == 1337
+    assert sum([len(way) for way in sevas_restrictions.values()]) == 1337
 
 
 @pytest.mark.parametrize("osm_id,expected_count", [(272345750, 2), (375986802, 1), (132630677, 2)])

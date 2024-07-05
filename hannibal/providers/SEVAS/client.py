@@ -81,10 +81,7 @@ class SEVASClient:
 
         if unzip:
             LOGGER.info(f"Unzipping {fp} to  {self._data_dir}")
-            self._unzip(
-                fp,
-                layer in [SEVASLayer.ROAD_SPEEDS, SEVASLayer.PREFERRED_ROADS, SEVASLayer.RESTRICTIONS],
-            )
+            self._unzip(fp)
 
     def get_zip_file_path(self, layer: SEVASLayer) -> Path:
         """

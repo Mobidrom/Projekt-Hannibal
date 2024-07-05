@@ -59,10 +59,10 @@ class SEVASProvider:
             self._client.get_all()
 
         self._polygons_path = data_path / (SEVASLayer.LOW_EMISSION_ZONES.value + ".shp")
-        self._polygons_segments_path = data_path / (SEVASLayer.ROAD_SPEEDS.value + ".dbf")
-        self._restrictions_path = data_path / (SEVASLayer.RESTRICTIONS.value + ".dbf")
-        self._preferred_roads_path = data_path / (SEVASLayer.PREFERRED_ROADS.value + ".dbf")
-        self._signs_path = data_path / (SEVASLayer.TRAFFIC_SIGNS.value + ".dbf")
+        self._polygons_segments_path = data_path / (SEVASLayer.ROAD_SPEEDS.value + ".shp")
+        self._restrictions_path = data_path / (SEVASLayer.RESTRICTIONS.value + ".shp")
+        self._preferred_roads_path = data_path / (SEVASLayer.PREFERRED_ROADS.value + ".shp")
+        self._signs_path = data_path / (SEVASLayer.TRAFFIC_SIGNS.value + ".shp")
 
         # create mappings OSM_ID -> sevas_records
         # to overwrite tags of existing objects

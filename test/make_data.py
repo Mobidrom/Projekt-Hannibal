@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 
 from hannibal.providers.SEVAS.constants import (
     NO_TAGE_EINZL,
@@ -29,6 +29,7 @@ def restriction_factory(
     zeit1_bis: str = "",
     zeit2_von: str = "",
     zeit2_bis: str = "",
+    shape: List[Tuple[float, float]] = [],
     vz: List[RestrVZ] = [],
 ) -> SEVASRestrRecord:
     return SEVASRestrRecord(
@@ -49,13 +50,15 @@ def restriction_factory(
         "test",
         "test",
         "test",
-        SEVASSynthesizer.make_vz(*vz),
+        shape=shape,
+        vz=SEVASSynthesizer.make_vz(*vz),
     )
 
 
 def road_speed_factory(
     osm_id: int,
     wert: SEVASRoadSpeedType,
+    shape: List[Tuple[float, float]] = [],
 ):
     return SEVASRoadSpeedRecord(
         segment_id=0,
@@ -68,6 +71,7 @@ def road_speed_factory(
         gemeinde="Köln",
         kreis="Köln",
         regbezirk="Köln",
+        shape=shape,
     )
 
 
@@ -150,6 +154,7 @@ W---N---M---K--L----O
             SEVASDir.BOTH,
             SEVASRestrType.HEIGHT,
             "7,5",
+            shape=s.way_coordinates("AB"),
             vz=[RestrVZ.VZ_1020_30],
         )
     ]
@@ -184,11 +189,11 @@ A---B---C---D---E---F
     r = SEVASSynthesizer(path)
 
     preferred_roads = [
-        road_speed_factory(0, SEVASRoadSpeedType.PEDESTRIAN),
-        road_speed_factory(1, SEVASRoadSpeedType.CALM_TRAFFIC),
-        road_speed_factory(2, SEVASRoadSpeedType.S20),
-        road_speed_factory(3, SEVASRoadSpeedType.S30),
-        road_speed_factory(4, SEVASRoadSpeedType.URBAN),
+        road_speed_factory(0, SEVASRoadSpeedType.PEDESTRIAN, s.way_coordinates("AB")),
+        road_speed_factory(1, SEVASRoadSpeedType.CALM_TRAFFIC, s.way_coordinates("BC")),
+        road_speed_factory(2, SEVASRoadSpeedType.S20, s.way_coordinates("CD")),
+        road_speed_factory(3, SEVASRoadSpeedType.S30, s.way_coordinates("DE")),
+        road_speed_factory(4, SEVASRoadSpeedType.URBAN, s.way_coordinates("EF")),
     ]
 
     r.write_segment_features(preferred_roads)
@@ -227,7 +232,7 @@ A---B---C---D---E---F
     s.to_file(path / "map.pbf")
     r = SEVASSynthesizer(path)
 
-    preferred_roads = [SEVASPreferredRoadRecord(0, SEVASDir.BOTH)]
+    preferred_roads = [SEVASPreferredRoadRecord(0, SEVASDir.BOTH, s.way_coordinates("AB"))]
 
     r.write_segment_features(preferred_roads)
 

@@ -4,8 +4,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Generator, List, Mapping, Tuple
 
-from hannibal.io.DBF import load_dbf
-from hannibal.logging import LOGGER
+from hannibal.io.shapefile import FeatureLike, load_shp
 from hannibal.providers.SEVAS.constants import SEVASZoneType
 from hannibal.util.immutable import ImmutableMixin
 
@@ -74,6 +73,7 @@ class SEVASRoadSpeedRecord:
     gemeinde: str
     kreis: str
     regbezirk: str
+    shape: List[Tuple[float, float]]
 
     def as_dict(self) -> Mapping[str, str | int]:
         """
@@ -111,7 +111,7 @@ class SEVASRoadSpeedRecord:
         return ZONE_VALUES.get(self.wert)
 
 
-def SevasRoadSpeedFactory(items: List[Tuple[str, Any]]) -> SEVASRoadSpeedRecord | None:
+def SevasRoadSpeedFactory(feature: FeatureLike) -> SEVASRoadSpeedRecord | None:
     """
     Factory function passed to the dbf loader to extract all the information we need
     from the zonal segment DBF. It contains low emission zone and speed type segments,
@@ -120,24 +120,25 @@ def SevasRoadSpeedFactory(items: List[Tuple[str, Any]]) -> SEVASRoadSpeedRecord 
     :return: a record or None if it's a record we don't care about (i.e. low emission zone segments)
     """
     kwargs = {}
-    for k, v in items:
+    for k, v in feature["properties"].items():
         # we only care about the tempozonen
         if k == "typ" and v == "umweltzone":
             return None
         kwargs[k] = v
 
-    return SEVASRoadSpeedRecord(**kwargs)
+    return SEVASRoadSpeedRecord(**kwargs, shape=feature["geometry"]["coordinates"])
 
 
 class SEVASRoadSpeeds(ImmutableMixin):
-    def __init__(self, dbf_path: Path) -> None:
+    def __init__(self, shp_path: Path) -> None:
         """
-        SEVAS preferred roads map. The DBF's records are read into memory at initialization by default.
+        SEVAS preferred roads map. The shapefile's features are read into memory at
+         initialization by default.
 
-        :param dbf: path to the restriction PBF file.
+        :param shp_path: path to the restriction shapefile.
         """
 
-        self._dbf_path = dbf_path
+        self._shp_path = shp_path
 
         # the mapping default value is an empty list
         self._map: Mapping[int, List[SEVASRoadSpeedRecord]] = defaultdict(list)
@@ -145,17 +146,12 @@ class SEVASRoadSpeeds(ImmutableMixin):
         # for stats, we keep track of the number of times an OSM ID was accessed
         self._access_count: Mapping[int, int] = {}
 
-        dbf = load_dbf(dbf_path, SevasRoadSpeedFactory)
-
-        record: SEVASRoadSpeedRecord
-
-        for record in dbf.records:
-            if record is None:
+        feature: SEVASRoadSpeedRecord
+        for feature in load_shp(shp_path, SevasRoadSpeedFactory):
+            if feature is None:
                 continue
-            self._map[record.osm_id].append(record)
-            self._access_count[record.osm_id] = 0
-
-        self.validate()
+            self._map[feature.osm_id].append(feature)
+            self._access_count[feature.osm_id] = 0
 
     def __getitem__(self, key: int) -> List[SEVASRoadSpeedRecord] | None:
         """
@@ -183,20 +179,3 @@ class SEVASRoadSpeeds(ImmutableMixin):
     def values(self) -> Generator[List[SEVASRoadSpeedRecord], Any, Any]:
         """Underlying dict access."""
         yield from self._map.values()
-
-    def validate(self) -> bool:
-        """
-        Validate the road speed map: there can be multiple entries for an OSM ID, but
-        only if each entry has a different type
-        """
-
-        for k, v in self.items():
-            types = set()
-            for speed in v:
-                if speed.typ not in types:
-                    types.add(speed.typ)
-                else:
-                    LOGGER.warning(f"Found duplicate speed types {speed.typ} in way {k}.")
-                    return False
-
-        return True

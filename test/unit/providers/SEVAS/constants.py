@@ -4,8 +4,8 @@ from hannibal.providers.SEVAS.constants import RestrVZ
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrRecord
 
 LEZ_PATH = Path("test/data/zonen_polygone_koeln.shp")
-RESTRICTION_PATH = Path("test/data/restriktionen_koeln.dbf")
-PREFERRED_ROADS_PATH = Path("test/data/vorrangrouten_koeln.dbf")
+RESTRICTION_PATH = Path("test/data/restriktionen_segmente_koeln.dbf")
+PREFERRED_ROADS_PATH = Path("test/data/vorrangrouten_segmente_koeln.dbf")
 POLYGON_SEGMENTS_PATH = Path("test/data/zonen_segmente_koeln.dbf")
 
 
@@ -53,6 +53,7 @@ TEST_RESTRICTIONS = {
             RestrVZ.VZ_1053_36: False,
             RestrVZ.VZ_1053_37: False,
         },
+        shape=[(0, 0), (1, 1)],
     ),
     494470560: SEVASRestrRecord(
         segment_id=1969815,
@@ -97,5 +98,6 @@ TEST_RESTRICTIONS = {
             RestrVZ.VZ_1053_36: False,
             RestrVZ.VZ_1053_37: False,
         },
+        shape=[(0, 0), (1, 1)],
     ),
 }

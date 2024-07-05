@@ -74,10 +74,6 @@ class SEVASSynthesizer:
         except ImportError:
             raise ImportError("Geopandas must be installed to run the test data creation.")
 
-        df = gpd.GeoDataFrame.from_records([f.as_dict() for f in features])
+        df = gpd.GeoDataFrame.from_features(features).set_crs("epsg:4326")
         path = self._base_dir / layer
         gpd.GeoDataFrame(df).to_file(path.with_suffix(".shp"))
-
-        # remove everything but the DBF
-        for p in self._base_dir.glob(f"{layer}*[!.dbf]"):
-            p.unlink()

@@ -1,12 +1,12 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Generator, List, Mapping, Tuple
 
-from hannibal.io.DBF import load_dbf
-from hannibal.logging import LOGGER
+from hannibal.io.shapefile import FeatureLike, load_shp
 from hannibal.providers import HannibalProvider
 from hannibal.providers.SEVAS.constants import SEVASDir
-from hannibal.util.exception import HannibalIOError, HannibalSchemaError
+from hannibal.util.exception import HannibalSchemaError
 from hannibal.util.immutable import ImmutableMixin
 
 
@@ -14,12 +14,21 @@ from hannibal.util.immutable import ImmutableMixin
 class SEVASPreferredRoadRecord:
     osm_id: int
     fahrtri: SEVASDir
+    shape: List[Tuple[float, float]]
 
     def as_dict(self) -> Mapping[str, str | int]:
         """
         Get the record as a dictionary
         """
         return {"osm_id": self.osm_id, "fahrtri": self.fahrtri.value}
+
+    @property
+    def __geo_interface__(self):
+        return {
+            "type": "Feature",
+            "properties": {"osm_id": self.osm_id, "fahrtri": self.fahrtri},
+            "geometry": {"type": "LineString", "coordinates": self.shape},
+        }
 
     def tag(self) -> Mapping[str, str]:
         """
@@ -42,62 +51,40 @@ class SEVASPreferredRoadRecord:
                 raise HannibalSchemaError("fahrtri", str(self.fahrtri), HannibalProvider.SEVAS)
 
 
-def SevasPreferredRoadFactory(items: List[Tuple[str, Any]]) -> SEVASPreferredRoadRecord:
+def SevasPreferredRoadFactory(feature: FeatureLike) -> SEVASPreferredRoadRecord:
     """
     Factory function passed to the dbf loader to extract all the information we need
     from the preferred road DBF (Dt. Vorrangrouten).
 
     :return: returns a record
     """
-    id_: int | None
-    dir_: SEVASDir | None = None
-    for k, v in items:
-        if k == "fahrtri":
-            dir_ = SEVASDir(v)
-        elif k == "osm_id":
-            id_ = v
 
-    if id_ is not None and dir_ is not None:
-        return SEVASPreferredRoadRecord(id_, dir_)
+    id_: int = feature["properties"]["osm_id"]
+    dir_: SEVASDir = SEVASDir(feature["properties"]["fahrtri"])
 
-    raise HannibalIOError("Failed to parse preferred road record.")
+    return SEVASPreferredRoadRecord(id_, dir_, feature["geometry"]["coordinates"])
 
 
 class SEVASPreferredRoads(ImmutableMixin):
-    def __init__(self, dbf_path: Path) -> None:
+    def __init__(self, shp_path: Path) -> None:
         """
-        SEVAS preferred roads map. The DBF's records are read into memory at initialization by default.
+        SEVAS preferred roads map. The shapefile's features are read into memory at initialization.
 
-        :param dbf: path to the restriction PBF file.
+        :param shp_path: path to the restriction Shapefile.
         """
 
-        self._dbf_path = dbf_path
+        self._shp_path = shp_path
 
         # the mapping default value is an empty list
-        self._map: Mapping[int, SEVASPreferredRoadRecord] = {}
+        self._map: Mapping[int, List[SEVASPreferredRoadRecord]] = defaultdict(list)
 
         # for stats, we keep track of the number of times an OSM ID was accessed
         self._access_count: Mapping[int, int] = {}
 
-        dbf = load_dbf(dbf_path, SevasPreferredRoadFactory)
-
-        record: SEVASPreferredRoadRecord
-        for record in dbf.records:
-            # handle duplicates: combine if directions are different
-            if existing := self._map.get(record.osm_id):
-                if int(record.fahrtri.value) + int(existing.fahrtri) == 3:
-                    existing.fahrtri = SEVASDir.BOTH
-                    LOGGER.warning(
-                        f"Combining bi-directional entries in preferred roads: {record.osm_id}"
-                    )
-                else:
-                    pass
-                    # LOGGER.info(
-                    #     f"Duplicate preferred road segment, ignoring additional entry: {record.osm_id}"
-                    # )
-                continue
-            self._map[record.osm_id] = record
-            self._access_count[record.osm_id] = 0
+        feature: SEVASPreferredRoadRecord
+        for feature in load_shp(shp_path, SevasPreferredRoadFactory):
+            self._map[feature.osm_id].append(feature)
+            self._access_count[feature.osm_id] = 0
 
     def __getitem__(self, key: int) -> SEVASPreferredRoadRecord | None:
         """

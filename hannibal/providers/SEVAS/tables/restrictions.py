@@ -4,7 +4,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Generator, List, Mapping, Tuple
 
-from hannibal.io.DBF import load_dbf
+from hannibal.io.shapefile import FeatureLike, load_shp
 from hannibal.logging import LOGGER
 from hannibal.providers import HannibalProvider
 from hannibal.providers.SEVAS.constants import (
@@ -48,19 +48,21 @@ KEY_FROM_TYPE = {
 }
 
 
-def SEVASRestrFactory(items: List[Tuple[str, Any]]):
+def SEVASRestrFactory(feature: FeatureLike):
     """
     Function passed to DBF loader to create in memory records from DBF records
     """
     kwargs = {}
     vz = {}
-    for k, v in items:
+    for k, v in feature["properties"].items():
         if k.startswith("vz_"):
             vz[RestrVZ(k)] = str_to_bool(v)
         else:
             if isinstance(v, str) and len(v) == 0:
                 v = None  # cast empty string to None
             kwargs[k] = v
+
+    kwargs["shape"] = feature["geometry"]["coordinates"]
 
     return SEVASRestrRecord(**kwargs, vz=vz)
 
@@ -90,6 +92,7 @@ class SEVASRestrRecord:
     gemeinde: str
     kreis: str
     regbezirk: str
+    shape: List[Tuple[float, float]]
 
     # collect the additional signs in a separate map
     vz: Mapping[RestrVZ, bool]
@@ -117,6 +120,14 @@ class SEVASRestrRecord:
             "kreis": self.kreis,
             "regbezirk": self.regbezirk,
             **{k.value: bool_to_str(v) for k, v in self.vz.items()},
+        }
+
+    @property
+    def __geo_interface__(self):
+        return {
+            "type": "Feature",
+            "properties": self.as_dict(),
+            "geometry": {"type": "LineString", "coordinates": self.shape},
         }
 
     def get_vz_items_sorted(self) -> Tuple[RestrVZ, bool]:
@@ -579,14 +590,15 @@ class SEVASRestrRecord:
 
 
 class SEVASRestrictions(ImmutableMixin):
-    def __init__(self, dbf_path: Path) -> None:
+    def __init__(self, shp_path: Path) -> None:
         """
-        SEVAS restriction map. The DBF's records are read into memory at initialization by default.
+        SEVAS restriction map. The shapefile's features are read into memory at
+            initialization by default.
 
-        :param dbf: path to the restriction PBF file.
+        :param shp_path: path to the restriction shapefile.
         """
 
-        self._dbf_path = dbf_path
+        self._shp_path = shp_path
 
         # the mapping default value is an empty list
         self._map: Mapping[int, List[SEVASRestrRecord]] = defaultdict(list)
@@ -594,15 +606,10 @@ class SEVASRestrictions(ImmutableMixin):
         # for stats, we keep track of the number of times an OSM ID was accessed
         self._access_count: Mapping[int, int] = {}
 
-        dbf = load_dbf(dbf_path, SEVASRestrFactory)
-
-        record: SEVASRestrRecord
-
-        for record in dbf.records:
-            self._map[record.osm_id].append(record)
-            self._access_count[record.osm_id] = 0
-
-        self.validate()
+        feature: SEVASRestrRecord
+        for feature in load_shp(shp_path, SEVASRestrFactory):
+            self._map[feature.osm_id].append(feature)
+            self._access_count[feature.osm_id] = 0
 
     def __getitem__(self, key: int) -> List[SEVASRestrRecord] | None:
         """
@@ -623,23 +630,3 @@ class SEVASRestrictions(ImmutableMixin):
 
     def values(self) -> Generator[List[SEVASRestrRecord], Any, Any]:
         yield from self._map.values()
-
-    def validate(self) -> bool:
-        """
-        Issue a warning if multiple restrictions for the same way have the same type and are valid
-        in the same direction.
-
-        :return: returns False if multiple restrictions of same type and direction
-            were found for one way,  else True
-        """
-
-        for osm_id, restrs in self.items():
-            types = set()
-            for restr in restrs:
-                if f"{restr.typ}{restr.fahrtri}" in types:
-                    LOGGER.warning(f"Duplicate restriction types for way {osm_id}")
-                    return False
-                else:
-                    types.add(f"{restr.typ}{restr.fahrtri}")
-
-        return True

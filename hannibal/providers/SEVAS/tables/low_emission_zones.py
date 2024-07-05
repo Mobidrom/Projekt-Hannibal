@@ -58,7 +58,7 @@ class SEVAS_LEZ_Record:
 
 def SevasLEZFactory(feature: Any) -> SEVAS_LEZ_Record | None:
     """
-    Factory function passed to the shp loader to extract all the information we need
+    Factory function passed to the shapefile loader to extract all the information we need
     from the zone (i.e. polygon) shapefile. It contains low emission zone and speed type segments,
     but the speed zones will be ignored here (we use the segments/roads layer for that).
 

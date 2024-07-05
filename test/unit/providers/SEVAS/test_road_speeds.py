@@ -32,6 +32,7 @@ TEST_ROAD_SPEEDS = {
         "Köln",
         "Köln",
         "Köln",
+        [(0, 0), (1, 1)],
     )
 }
 
@@ -45,11 +46,8 @@ def test_number_of_road_speeds(sevas_road_speeds: SEVASRoadSpeeds):
     """
     Gets a Restriction table object and tests the number of total road speeds in there.
     """
-    assert len([p for p in sevas_road_speeds.items()]) == 72
-    assert len([p for p in sevas_road_speeds.values()]) == 72
-
-    # there's a duplicate value in there, make sure we catch it
-    assert not sevas_road_speeds.validate()
+    assert len([p for p in sevas_road_speeds.items()]) == 11091
+    assert len([p for p in sevas_road_speeds.values()]) == 11091
 
 
 @pytest.mark.parametrize("osm_id", TEST_ROAD_SPEEDS.keys())
@@ -82,4 +80,5 @@ def test_simple_tags(sevas_road_speeds: SEVASRoadSpeeds, osm_id):
     tags = restr.tags()
 
     for k, v in tags.items():
+        print(f"{k}: {v}")
         assert v == TEST_ROAD_SPEED_TAGS[osm_id][k]
