@@ -13,8 +13,8 @@ class SEVASSynthesizer:
         """
         Class that helps producing fake SEVAS data!
 
-        There are no solid stand-alone DBF writers, so we just use geopandas to easily
-        write shapefiles and then remove the files we don't need.
+        Performance doesn't really matter so we just use geopandas to easily
+        write shapefiles.
 
         """
         self._base_dir = base_dir
