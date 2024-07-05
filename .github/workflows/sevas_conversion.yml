@@ -12,7 +12,13 @@ on:
         required: true
         default: "https://sevas.nrw.de/osm/sevas"
       clean_tags:
-        description: "Komma separierte tags"
+        description: "Durch Leerzeichen separierte tags, die innerhalb der in 'clean_area' angegebenen Fläche von allen Objekten entfernt werden"
+        required: false
+        default: ""
+      clean_area:
+        description: "OSM ID einer Relation, die eine Fläche darstellt. Wenn angegeben, werden innerhalb dieser Fläche alle Tags mit in 'clean_tags' angegebenen Keys entfernt"
+        required: false
+        default: "-1"
 
 jobs:
   convert:
@@ -56,8 +62,9 @@ jobs:
           sudo apt install --yes --quiet osmium-tool
           source .venv/bin/activate
           mkdir sevas_data
+
           sevas_utils download sevas_data ${{ github.event.inputs.sevas_url }} 
-          sevas_utils convert sevas_data test/data/koeln.pbf sevas_konvertiert.pbf -t maxspeed --filter-relation 2613780
+          sevas_utils convert sevas_data test/data/koeln.pbf sevas_konvertiert.pbf --clean-tags "${{ github.events.inputs.clean_tags }}"  --clean-area "${{ github.event.inputs.clean_area }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

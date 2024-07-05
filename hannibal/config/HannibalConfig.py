@@ -80,6 +80,7 @@ class TagCleanConfig:
     Which tags to remove in which polygon. If exact is True, will only match exact keys,
     otherwise it will match all tag keys that start with any of the passed keys."""
 
+    id: int
     keys: List[str]
     polygon: Polygon
     exact: bool = False
@@ -141,4 +142,4 @@ def get_tag_clean_config(rel: int, osm_path: Path, keys: List[str]) -> TagCleanC
         LOGGER.error(f"Unable to find area for relation {rel} in {osm_path}")
         return None
 
-    return TagCleanConfig(keys, r.geometry)
+    return TagCleanConfig(rel, keys, r.geometry)

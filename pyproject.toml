@@ -8,7 +8,7 @@ readme = "README.md"
 packages = [{ include = "hannibal" }, { include = "scripts" }]
 
 [tool.poetry.scripts]
-sevas_utils = "scripts.hannibal_sevas_utils:main"
+sevas_utils = "scripts.sevas_utils:main"
 hannibal = "cli:main"
 
 [tool.poetry.dependencies]

@@ -113,6 +113,16 @@ class SEVASProvider:
 
         self._rewriter.close()
         self._rewriter.merge()
+        print(f"SEVAS Konvertierung abgeschlossen. Finale OSM Datei: [bold]{self._out_path}[/bold]")
 
     def report(self):
-        print(self._rewriter._reporter)
+        print("")
+        print("[bold][blue]#__________ Report __________#[/blue][/bold]")
+        print("")
+        print("Anzahl hinzugefügter Tags pro Layer")
+        print(f"\t{dict(self._rewriter._reporter["added"])}")
+        print("Anzahl entfernter/überschriebener Tags pro Layer")
+        print(f"\t{dict(self._rewriter._reporter["overridden"])}")
+        if self._rewriter._tag_clean_config:
+            print(f"Anzahl in {self._rewriter._tag_clean_config.id} entfernter Tags")
+            print(f"\t{dict(self._rewriter._reporter["cleaned"])}")

@@ -13,9 +13,10 @@ hannibal = typer.Typer()
 def convert(
     config: Annotated[Path, typer.Argument(help="The config to read from. Must be in YAML format.")],
 ):
-    print(f"[bold]Starting [green]Hannibal Conversion[/green], reading config from {config} [/bold]")
+    print(f"[bold]Starte [green]Hannibal Konversion[/green], lese Konfiguration von {config} [/bold]")
     hc = HannibalConfig.from_path(config)
     print(hc)
+    print("Zu mehr bin ich gerade noch nicht in der Lage :-(")
 
 
 def main():
