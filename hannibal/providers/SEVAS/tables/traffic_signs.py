@@ -4,7 +4,6 @@ from typing import Any, Generator, List, Tuple
 
 from hannibal.io.DBF import load_dbf
 from hannibal.io.shapefile import load_shp
-from hannibal.util.immutable import ImmutableMixin
 
 MAX_SIGN_NODE_ID = 2**62
 
@@ -51,7 +50,7 @@ def SevasSignRecordFactory(feature: Any) -> SEVASSignRecord:
     )
 
 
-class SEVASSigns(ImmutableMixin):
+class SEVASSigns:
     def __init__(
         self,
         shp_path: Path,

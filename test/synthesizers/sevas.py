@@ -11,7 +11,7 @@ from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeedRecord
 class SEVASSynthesizer:
     def __init__(self, base_dir: Path) -> None:
         """
-        Class that helps producing fake SEVAS data!
+        Class that helps producing fake SEVAS data.
 
         Performance doesn't really matter so we just use geopandas to easily
         write shapefiles.

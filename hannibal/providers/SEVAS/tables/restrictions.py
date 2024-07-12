@@ -1,10 +1,8 @@
-from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
-from typing import Any, Generator, List, Mapping, Tuple
+from typing import List, Mapping, Tuple
 
-from hannibal.io.shapefile import FeatureLike, load_shp
+from hannibal.io.shapefile import FeatureLike
 from hannibal.logging import LOGGER
 from hannibal.providers import HannibalProvider
 from hannibal.providers.SEVAS.constants import (
@@ -23,9 +21,9 @@ from hannibal.providers.SEVAS.constants import (
     SEVASDir,
     SEVASRestrType,
 )
+from hannibal.providers.SEVAS.tables.base import SEVASBaseRecord, SEVASBaseTable
 from hannibal.util.data import bool_to_str, str_to_bool
 from hannibal.util.exception import HannibalSchemaError
-from hannibal.util.immutable import ImmutableMixin
 
 
 class SEVASGroupedDays(str, Enum):
@@ -68,7 +66,7 @@ def SEVASRestrFactory(feature: FeatureLike):
 
 
 @dataclass
-class SEVASRestrRecord:
+class SEVASRestrRecord(SEVASBaseRecord):
     """
     The SEVAS Restriction class. DBF fields into attributes, so they can be accessed by name.
     The "vz_" flags are stored in their own dictionary.
@@ -120,14 +118,6 @@ class SEVASRestrRecord:
             "kreis": self.kreis,
             "regbezirk": self.regbezirk,
             **{k.value: bool_to_str(v) for k, v in self.vz.items()},
-        }
-
-    @property
-    def __geo_interface__(self):
-        return {
-            "type": "Feature",
-            "properties": self.as_dict(),
-            "geometry": {"type": "LineString", "coordinates": self.shape},
         }
 
     def get_vz_items_sorted(self) -> Tuple[RestrVZ, bool]:
@@ -589,44 +579,19 @@ class SEVASRestrRecord:
         return s
 
 
-class SEVASRestrictions(ImmutableMixin):
-    def __init__(self, shp_path: Path) -> None:
-        """
-        SEVAS restriction map. The shapefile's features are read into memory at
-            initialization by default.
+class SEVASRestrictions(SEVASBaseTable):
+    @property
+    def feature_factory(self):
+        return SEVASRestrFactory
 
-        :param shp_path: path to the restriction shapefile.
-        """
-
-        self._shp_path = shp_path
-
-        # the mapping default value is an empty list
-        self._map: Mapping[int, List[SEVASRestrRecord]] = defaultdict(list)
-
-        # for stats, we keep track of the number of times an OSM ID was accessed
-        self._access_count: Mapping[int, int] = {}
-
-        feature: SEVASRestrRecord
-        for feature in load_shp(shp_path, SEVASRestrFactory):
-            self._map[feature.osm_id].append(feature)
-            self._access_count[feature.osm_id] = 0
-
-    def __getitem__(self, key: int) -> List[SEVASRestrRecord] | None:
-        """
-        Access the internal mapping by OSM ID
-        """
-        if self._access_count.get(key):
-            self._access_count[key] += 1
-        return self._map[key] or None
-
-    def unaccessed_osm_ids(self) -> Generator[int, Any, Any]:
-        for k, v in self._access_count:
-            if v == 0:
-                yield k
-
-    def items(self) -> Generator[Tuple[int, List[SEVASRestrRecord]], Any, Any]:
-        for k, v in self._map.items():
-            yield k, v
-
-    def values(self) -> Generator[List[SEVASRestrRecord], Any, Any]:
-        yield from self._map.values()
+    def invalidating_keys(self) -> Tuple[str]:
+        return (
+            "maxweight",
+            "maxheight",
+            "maxlength",
+            "maxwidth",
+            "maxaxleload",
+            "hazmat",
+            "hgv",
+            "traffic_sign",
+        )

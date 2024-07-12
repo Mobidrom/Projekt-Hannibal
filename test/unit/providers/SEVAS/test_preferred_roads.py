@@ -50,7 +50,7 @@ def test_simple_tags(sevas_preferred_roads: SEVASPreferredRoads, osm_id):
 
     pref = sevas_preferred_roads[osm_id]
 
-    tag = pref[0].tag()
+    tag = pref[0].tags()
 
     assert len(tag) == len(TEST_PREFERRED_ROAD_TAGS[osm_id])
 

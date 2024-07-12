@@ -5,7 +5,6 @@ from typing import Any, Generator, List, Mapping
 
 from hannibal.io.shapefile import load_shp
 from hannibal.providers.SEVAS.constants import SEVASZoneType
-from hannibal.util.immutable import ImmutableMixin
 
 
 class SEVASLEZType(str, Enum):
@@ -81,7 +80,7 @@ def SevasLEZFactory(feature: Any) -> SEVAS_LEZ_Record | None:
     )
 
 
-class SEVAS_LEZ(ImmutableMixin):
+class SEVAS_LEZ:
     def __init__(
         self,
         shp_path: Path,
