@@ -40,6 +40,8 @@ def load_shp(p: Path, feature_factory: Callable[[Any], T]) -> Generator[T, Any, 
     try:
         with fiona.open(p) as shp:
             for feature in shp:
-                yield feature_factory(feature)
+                read_feature = feature_factory(feature)
+                if read_feature:
+                    yield read_feature
     except Exception as e:  # noqa
         raise HannibalIOError(f"Failed to load shapefile at {p}: {e}")

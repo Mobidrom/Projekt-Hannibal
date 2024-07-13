@@ -46,23 +46,7 @@ KEY_FROM_TYPE = {
 }
 
 
-def SEVASRestrFactory(feature: FeatureLike):
-    """
-    Function passed to DBF loader to create in memory records from DBF records
-    """
-    kwargs = {}
-    vz = {}
-    for k, v in feature["properties"].items():
-        if k.startswith("vz_"):
-            vz[RestrVZ(k)] = str_to_bool(v)
-        else:
-            if isinstance(v, str) and len(v) == 0:
-                v = None  # cast empty string to None
-            kwargs[k] = v
-
-    kwargs["shape"] = feature["geometry"]["coordinates"]
-
-    return SEVASRestrRecord(**kwargs, vz=vz)
+# def SEVASRestrFactory(feature: FeatureLike):
 
 
 @dataclass
@@ -580,9 +564,24 @@ class SEVASRestrRecord(SEVASBaseRecord):
 
 
 class SEVASRestrictions(SEVASBaseTable):
-    @property
-    def feature_factory(self):
-        return SEVASRestrFactory
+    @staticmethod
+    def feature_factory(feature: FeatureLike) -> SEVASRestrRecord:
+        """
+        Function passed to shapefile loader to create in memory records from DBF records
+        """
+        kwargs = {}
+        vz = {}
+        for k, v in feature["properties"].items():
+            if k.startswith("vz_"):
+                vz[RestrVZ(k)] = str_to_bool(v)
+            else:
+                if isinstance(v, str) and len(v) == 0:
+                    v = None  # cast empty string to None
+                kwargs[k] = v
+
+        kwargs["shape"] = feature["geometry"]["coordinates"]
+
+        return SEVASRestrRecord(**kwargs, vz=vz)
 
     def invalidating_keys(self) -> Tuple[str]:
         return (

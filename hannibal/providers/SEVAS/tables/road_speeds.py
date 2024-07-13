@@ -110,24 +110,6 @@ class SEVASRoadSpeedRecord(SEVASBaseRecord):
         return ZONE_VALUES.get(self.wert)
 
 
-def SevasRoadSpeedFactory(feature: FeatureLike) -> SEVASRoadSpeedRecord | None:
-    """
-    Factory function passed to the dbf loader to extract all the information we need
-    from the zonal segment DBF. It contains low emission zone and speed type segments,
-    but the LEM zone ones will be ignored here.
-
-    :return: a record or None if it's a record we don't care about (i.e. low emission zone segments)
-    """
-    kwargs = {}
-    for k, v in feature["properties"].items():
-        # we only care about the tempozonen
-        if k == "typ" and v == "umweltzone":
-            return None
-        kwargs[k] = v
-
-    return SEVASRoadSpeedRecord(**kwargs, shape=feature["geometry"]["coordinates"])
-
-
 class SEVASRoadSpeeds(SEVASBaseTable):
     def __init__(self, shp_path: Path) -> None:
         super().__init__(shp_path)
@@ -137,9 +119,23 @@ class SEVASRoadSpeeds(SEVASBaseTable):
         for feature_list in self._map.values():
             feature_list.sort(key=lambda f: f.wert)
 
-    @property
-    def feature_factory(self):
-        return SevasRoadSpeedFactory
+    @staticmethod
+    def feature_factory(feature: FeatureLike) -> SEVASRoadSpeedRecord:
+        """
+        Factory function passed to the shapefile loader to extract all the information we need
+        from the zonal segment shapefile. It contains low emission zone and speed type segments,
+        but the LEM zone ones will be ignored here.
+
+        :return: a record or None if it's a record we don't care about (i.e. low emission zone segments)
+        """
+        kwargs = {}
+        for k, v in feature["properties"].items():
+            # we only care about the tempozonen
+            if k == "typ" and v == "umweltzone":
+                return None
+            kwargs[k] = v
+
+        return SEVASRoadSpeedRecord(**kwargs, shape=feature["geometry"]["coordinates"])
 
     def invalidating_keys(self) -> Tuple[str]:
         return ("maxspeed", "maxspeed", "zone:traffic", "source:maxspeed")

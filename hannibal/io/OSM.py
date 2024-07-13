@@ -106,9 +106,12 @@ class OSMRewriter(SimpleHandler):
         #  2. overriding tags (meaning adding tags where related tags already exist)
         #  3. cleaning tags (removing tags regardless of whether related tags will be added from SEVAS
         #     data, but based on the clean_tags config options)
-        self._reporter["added"] = defaultdict(int)
-        self._reporter["overridden"] = defaultdict(int)
-        self._reporter["cleaned"] = defaultdict(int)
+        # self._reporter["added"] = defaultdict(int)
+        # self._reporter["overridden"] = defaultdict(int)
+        # self._reporter["cleaned"] = defaultdict(int)
+        self._reporter["uninteresting"] = 0
+        self._reporter["written"] = 0
+        self._reporter["split"] = 0
 
     def merge(self, delete_tmps: bool = True):
         """
@@ -145,14 +148,14 @@ class OSMRewriter(SimpleHandler):
         # first check if tags should be cleaned based on
         # whether the node is inside a specified polygon
         if self._intersects_tag_filter(node):
-            d = self._filter_tags(tags)
-            self._merge_reporter_stats(d)
+            d = self._filter_tags(tags)  # noqa
+            # self._merge_reporter_stats(d)
 
         # TODO: add traffic sign support
         if self._traffic_signs:
             is_traffic_sign = any([k == "traffic_sign" for k, _ in node.tags])
             if is_traffic_sign:
-                self._reporter["overridden"]["traffic_signs"] += 1
+                # self._reporter["overridden"]["traffic_signs"] += 1
                 return
 
         mut = node.replace()
@@ -175,28 +178,33 @@ class OSMRewriter(SimpleHandler):
         """
         base_tags: Dict[str, str] = dict(way.tags)
         if self._intersects_tag_filter(way):
-            d = self._filter_tags(base_tags)
-            self._merge_reporter_stats(d)
+            d = self._filter_tags(base_tags)  # noqa
+            # self._merge_reporter_stats(d)
 
         # first, check whether this is a simple copy operation (true if there are no entries
         # for this OSM ID in any SEVAS layer)
         if not self._has_sevas_data(way):
             self._copy_way(way, base_tags)
+            self._reporter["uninteresting"] += 1
             return
 
         # get the way line to find out whether the line needs to be split
-        # line = self._wkb_fac.create_linestring(way)
-        # geom = wkb.loads(line, hex=True)
+        line = self._wkb_fac.create_linestring(way)
+        geom = wkb.loads(line, hex=True)
 
-        # # a lookup structure to store tags and their start and end fraction of validity
-        # split_tags: Dict[Tuple[float, float], Dict[str, str]] = defaultdict(dict)
+        # a lookup structure to store tags and their start and end fraction of validity
+        split_tags: Dict[Tuple[float, float], Dict[str, str]] = defaultdict(dict)
 
-        # # collect all fractions where the line should be split
-        # split_points: Dict[float, Point] = dict()
+        # collect all fractions where the line should be split
+        split_points: Dict[float, Point] = dict()
 
         # there is at least one entry, but chances are it covers the whole length of the way,
         # so we don't need to split it.
-        # if not self._requires_splitting(way.id, geom, split_points, split_tags):
+        if self._requires_splitting(way.id, geom, split_points, split_tags):
+            self._reporter["split"] += 1
+        else:
+            self._reporter["written"] += 1
+
         return self._write_without_splitting(way, base_tags)
 
         # if we came down here, the way needs to be split into at least two ways.
@@ -311,6 +319,8 @@ class OSMRewriter(SimpleHandler):
             # but in general, that should only happen in case of badly mapped/illogical SEVAS data
             #  (e.g. a way is both marked as a preferred road but also prohibits access to HGVs)
             feature: SEVASBaseRecord
+            if not layer[way.id]:
+                continue
             for feature in layer[way.id]:
                 base_tags.update(feature.tags())
 
@@ -345,6 +355,8 @@ class OSMRewriter(SimpleHandler):
         needs_splitting = False
         for layer in self._get_available_way_layers():
             feature: Type[SEVASBaseRecord]
+            if not layer[way_id]:
+                continue
             for feature in layer[way_id]:
                 frac: Fraction = get_fraction(way_geom, feature.geom)
                 if frac.bounds() != FULL_FRACTION:
@@ -421,7 +433,7 @@ class OSMRewriter(SimpleHandler):
                 [True if k == "boundary" and v == "low_emission_zone" else False for k, v in rel.tags]
             )
             if is_low_emission_zone:
-                self._reporter["overridden"]["low_emission_zones"] += 1
+                # self._reporter["overridden"]["low_emission_zones"] += 1
                 return
 
         mut = rel.replace()
@@ -461,7 +473,7 @@ class OSMRewriter(SimpleHandler):
                 node_list.append(node_list[0])
             self._create_way(wid, node_list)
             self._create_relation(rid, [wid], {"boundary": "low_emission_zone"})
-            self._reporter["added"]["low_emission_zones"] += 1
+            # self._reporter["added"]["low_emission_zones"] += 1
             wid += 1
             rid += 1
 

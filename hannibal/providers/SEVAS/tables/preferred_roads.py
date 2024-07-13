@@ -49,16 +49,17 @@ def SevasPreferredRoadFactory(feature: FeatureLike) -> SEVASPreferredRoadRecord:
     :return: returns a record
     """
 
-    id_: int = feature["properties"]["osm_id"]
-    dir_: SEVASDir = SEVASDir(feature["properties"]["fahrtri"])
-
-    return SEVASPreferredRoadRecord(id_, dir_, feature["geometry"]["coordinates"])
-
 
 class SEVASPreferredRoads(SEVASBaseTable):
-    @property
-    def feature_factory(self):
-        return SevasPreferredRoadFactory
+    @staticmethod
+    def feature_factory(feature: FeatureLike) -> SEVASPreferredRoadRecord:
+        """
+        The preferred road segment feature factory passed to the shapefile loader
+        """
+        id_: int = feature["properties"]["osm_id"]
+        dir_: SEVASDir = SEVASDir(feature["properties"]["fahrtri"])
+
+        return SEVASPreferredRoadRecord(id_, dir_, feature["geometry"]["coordinates"])
 
     def invalidating_keys(self) -> Tuple[str]:
         return ("hgv",)

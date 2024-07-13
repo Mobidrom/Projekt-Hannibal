@@ -14,19 +14,6 @@ class SEVASBaseRecord(ABC):
     def tags(self) -> Dict[str, str]:
         pass
 
-    # @property
-    # @abstractmethod
-    # def osm_id(self) -> int:
-    #     raise NotImplementedError
-
-    # @property
-    # @abstractmethod
-    # def shape(self) -> List[Tuple[float, float]]:
-    #     """
-    #     Store the LineString coordinates on the shape
-    #     """
-    #     raise NotImplementedError
-
     @property
     def __geo_interface__(self) -> Dict:
         """
