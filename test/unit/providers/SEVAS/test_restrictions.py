@@ -41,7 +41,7 @@ TEST_SIGNATURES = {
 }
 
 
-@pytest.fixture
+@pytest.fixture()
 def sevas_restrictions():
     return SEVASRestrictions(RESTRICTION_PATH)
 

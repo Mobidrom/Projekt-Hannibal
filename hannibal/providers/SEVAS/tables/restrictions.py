@@ -46,9 +46,6 @@ KEY_FROM_TYPE = {
 }
 
 
-# def SEVASRestrFactory(feature: FeatureLike):
-
-
 @dataclass
 class SEVASRestrRecord(SEVASBaseRecord):
     """

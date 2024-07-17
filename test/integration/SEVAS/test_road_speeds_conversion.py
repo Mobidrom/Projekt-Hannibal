@@ -1,3 +1,6 @@
+from pathlib import Path
+from typing import Tuple
+
 import pytest
 from shapely import LineString
 
@@ -5,6 +8,7 @@ from hannibal.providers.SEVAS.provider import SEVASProvider
 from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeedType
 from test.integration.SEVAS import get_provider_args
 from test.make_data import make_osm_test_data, road_speed_factory
+from test.synthesizers.osm import OSMSynthesizer
 from test.synthesizers.sevas import SEVASSynthesizer
 from test.util.geo import line_in_list
 from test.util.osm import OSMTestHandler
@@ -91,3 +95,24 @@ def test_shape_count(converted_road_speeds, way_name: str, count: int):
 def test_shapes(converted_road_speeds, way_coordinates: str, way_name: str):
     counter, osm = converted_road_speeds
     line_in_list(LineString(osm.way_coordinates(way_coordinates)), counter.way_shapes[way_name])
+
+
+@pytest.mark.parametrize(
+    ["tag_combination", "count"],
+    [
+        (("way", "maxspeed", "30"), 4),
+        (("way", "zone:traffic", "DE:zone30"), 4),
+        (("way", "source:maxspeed", "DE:zone30"), 4),
+        (("way", "maxspeed:type", "DE:zone30"), 4),
+        (("way", "maxspeed", "20"), 1),
+    ],
+)
+def test_tag_counts(
+    converted_road_speeds: Tuple[OSMSynthesizer, Path],
+    tag_combination: Tuple[str, str, str],
+    count: int,
+):
+    counter, _ = converted_road_speeds
+    assert (
+        r := counter.counter[tag_combination]
+    ) == count, f"Tag count incorrect for {tag_combination}, expected {count}, found {r}"

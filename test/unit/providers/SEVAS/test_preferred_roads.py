@@ -15,7 +15,7 @@ TEST_PREFERRED_ROAD_TAGS = {
 TEST_PREFERRED_ROADS = {2829323: SEVASPreferredRoadRecord(2829323, "0", [(0, 0), (1, 1)])}
 
 
-@pytest.fixture
+@pytest.fixture()
 def sevas_preferred_roads():
     return SEVASPreferredRoads(PREFERRED_ROADS_PATH)
 

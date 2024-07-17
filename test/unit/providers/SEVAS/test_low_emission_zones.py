@@ -7,7 +7,7 @@ TEST_LEZ = {3191: {"shape_length": 170, "wert": "1031-52", "typ": "umweltzone"}}
 TEST_LOW_EMISSION_TAGS = {3191: {"type": "boundary", "boundary": "low_emission_zone"}}
 
 
-@pytest.fixture
+@pytest.fixture()
 def sevas_lez():
     return SEVAS_LEZ(LEZ_PATH)
 

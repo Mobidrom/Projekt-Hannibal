@@ -27,8 +27,13 @@ A---B---C---D---E---F
 |       |
 W---N---M---K--L----O
     |   |           |
+    |   2           3
     |   |           |
-    V---S----R------P
+    1   |           4
+    |   |           |
+    |   9           5
+    |   |           |
+    V-8-S----R--6---P
 """
 
     ways = {
@@ -51,7 +56,7 @@ W---N---M---K--L----O
         "SV": (16, {"highway": "tertiary"}),
         "SM": (17, {"highway": "tertiary"}),
         "MN": (18, {"highway": "tertiary"}),
-        "VN": (19, {"highway": "tertiary"}),
+        "V1N": (19, {"highway": "tertiary"}),
         "NW": (20, {"highway": "tertiary"}),
         "WA": (21, {"highway": "tertiary"}),
     }
@@ -86,6 +91,13 @@ W---N---M---K--L----O
             "3,6",
             shape=osm.way_coordinates("CD"),
         ),
+        restriction_factory(
+            19,
+            SEVASDir.BOTH,
+            SEVASRestrType.HGV_NO,
+            "",
+            shape=osm.way_coordinates("V1"),
+        ),
     ]
     sevas = SEVASSynthesizer(path)
     sevas.write_segment_features(restrictions)
@@ -107,8 +119,8 @@ W---N---M---K--L----O
 
 def test_object_count(converted_restrictions):
     counter, _ = converted_restrictions
-    assert counter.way_count == 22
-    assert counter.node_count == 20
+    assert counter.way_count == 23
+    assert counter.node_count == 29
     assert counter.relation_count == 0
 
 
@@ -120,6 +132,7 @@ def test_object_count(converted_restrictions):
         ("CD", 1),
         ("DE", 1),
         ("EF", 1),
+        ("V1N", 2),
     ],
 )
 def test_shape_count(converted_restrictions, way_name: str, count: int):
@@ -132,6 +145,7 @@ def test_shape_count(converted_restrictions, way_name: str, count: int):
     [
         ("AB", "AB"),
         ("DE", "DE"),
+        ("V1", "V1N"),
     ],
 )
 def test_shapes(converted_restrictions, way_coordinates: str, way_name: str):
@@ -142,7 +156,7 @@ def test_shapes(converted_restrictions, way_coordinates: str, way_name: str):
 @pytest.mark.parametrize(
     ["tag_combination", "count"],
     [
-        (("way", "highway", "tertiary"), 22),
+        (("way", "highway", "tertiary"), 23),
         (("way", "maxweight", "3.5"), 1),
         (("way", "hgv:backward", "no"), 1),
         (("way", "maxweight:forward", "3.6"), 1),
@@ -150,6 +164,7 @@ def test_shapes(converted_restrictions, way_coordinates: str, way_name: str):
         (("way", "maxheight", "7.5"), 1),
         (("way", "maxheight:conditional", "none @ destination"), 1),
         (("way", "traffic_sign", "DE:265,1020-30"), 1),
+        (("way", "hgv", "no"), 2),
     ],
 )
 def test_tag_counts(

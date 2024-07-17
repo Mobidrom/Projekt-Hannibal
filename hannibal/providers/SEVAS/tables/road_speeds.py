@@ -114,14 +114,16 @@ class SEVASRoadSpeedRecord(SEVASBaseRecord):
         return SEVASRoadSpeeds.invalidating_keys()
 
 
-class SEVASRoadSpeeds(SEVASBaseTable):
+class SEVASRoadSpeeds(SEVASBaseTable[SEVASRoadSpeedRecord]):
     def __init__(self, shp_path: Path) -> None:
         super().__init__(shp_path)
 
         # for road speeds, it's important to sort the list of entries for each OSM Way ID
         # from least to most strict, so that when tags are applied, the strictest ones wins
         for feature_list in self._map.values():
-            feature_list.sort(key=lambda f: f.wert)
+            feature_list.sort(key=lambda f: f.wert, reverse=True)
+
+            print([f.wert for f in feature_list])
 
     @staticmethod
     def feature_factory(feature: FeatureLike) -> SEVASRoadSpeedRecord:
@@ -135,8 +137,12 @@ class SEVASRoadSpeeds(SEVASBaseTable):
         kwargs = {}
         for k, v in feature["properties"].items():
             # we only care about the tempozonen
-            if k == "typ" and v == "umweltzone":
-                return None
+            if k == "typ":
+                if v == "umweltzone":
+                    return None
+                v = SEVASZoneType.SPEED
+            if k == "wert":
+                v = SEVASRoadSpeedType(v)
             kwargs[k] = v
 
         return SEVASRoadSpeedRecord(**kwargs, shape=feature["geometry"]["coordinates"])
