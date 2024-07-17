@@ -11,10 +11,10 @@ from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeedRecord
 class SEVASSynthesizer:
     def __init__(self, base_dir: Path) -> None:
         """
-        Class that helps producing fake SEVAS data!
+        Class that helps producing fake SEVAS data.
 
-        There are no solid stand-alone DBF writers, so we just use geopandas to easily
-        write shapefiles and then remove the files we don't need.
+        Performance doesn't really matter so we just use geopandas to easily
+        write shapefiles.
 
         """
         self._base_dir = base_dir
@@ -50,6 +50,8 @@ class SEVASSynthesizer:
         """
         Write segment features (i.e. restrictions, preferred roads and road speeds) to DBF file.
         Expects a list of features of the same type.
+
+        :return: the path the features were written to.
         """
         if not len(features):
             raise ValueError("Feature list cannot be empty")
@@ -74,10 +76,9 @@ class SEVASSynthesizer:
         except ImportError:
             raise ImportError("Geopandas must be installed to run the test data creation.")
 
-        df = gpd.GeoDataFrame.from_records([f.as_dict() for f in features])
+        df = gpd.GeoDataFrame.from_features(features).set_crs("epsg:4326")
         path = self._base_dir / layer
-        gpd.GeoDataFrame(df).to_file(path.with_suffix(".shp"))
+        out_path = path.with_suffix(".shp")
+        gpd.GeoDataFrame(df).to_file(out_path)
 
-        # remove everything but the DBF
-        for p in self._base_dir.glob(f"{layer}*[!.dbf]"):
-            p.unlink()
+        return out_path

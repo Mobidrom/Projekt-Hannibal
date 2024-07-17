@@ -5,7 +5,6 @@ from typing import Any, Generator, List, Mapping
 
 from hannibal.io.shapefile import load_shp
 from hannibal.providers.SEVAS.constants import SEVASZoneType
-from hannibal.util.immutable import ImmutableMixin
 
 
 class SEVASLEZType(str, Enum):
@@ -58,7 +57,7 @@ class SEVAS_LEZ_Record:
 
 def SevasLEZFactory(feature: Any) -> SEVAS_LEZ_Record | None:
     """
-    Factory function passed to the shp loader to extract all the information we need
+    Factory function passed to the shapefile loader to extract all the information we need
     from the zone (i.e. polygon) shapefile. It contains low emission zone and speed type segments,
     but the speed zones will be ignored here (we use the segments/roads layer for that).
 
@@ -81,7 +80,7 @@ def SevasLEZFactory(feature: Any) -> SEVAS_LEZ_Record | None:
     )
 
 
-class SEVAS_LEZ(ImmutableMixin):
+class SEVAS_LEZ:
     def __init__(
         self,
         shp_path: Path,

@@ -2,10 +2,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Generator, List, Tuple
 
-from hannibal.io.DBF import load_dbf
-from hannibal.io.shapefile import load_shp
-from hannibal.util.immutable import ImmutableMixin
-
 MAX_SIGN_NODE_ID = 2**62
 
 
@@ -51,7 +47,7 @@ def SevasSignRecordFactory(feature: Any) -> SEVASSignRecord:
     )
 
 
-class SEVASSigns(ImmutableMixin):
+class SEVASSigns:
     def __init__(
         self,
         shp_path: Path,
@@ -69,13 +65,7 @@ class SEVASSigns(ImmutableMixin):
         :param shp: path to the polygon shapefile.
         :param max_node_id: the maximum node ID to begin decrementing from
         """
-
-        self._shp_path = shp_path
-        self._max_node_id = max_node_id
-
-        self._unique_a_ids = []
-        for rec in load_dbf(shp_path.with_suffix("").with_suffix(".dbf"), _ID_Factory):
-            self._unique_a_ids.append(rec)
+        pass
 
     def features(self) -> Generator[Tuple[int, List[SEVASSignRecord]], Any, Any]:
         """
@@ -83,10 +73,4 @@ class SEVASSigns(ImmutableMixin):
         a_id attribute.
 
         """
-        f: SEVASSignRecord
-        for a_id in self._unique_a_ids:
-            features = []
-            for f in load_shp(self._path):
-                if f.a_id == a_id:
-                    features.append(f)
-            yield (a_id, features)
+        pass

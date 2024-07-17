@@ -1,10 +1,8 @@
-from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
-from typing import Any, Generator, List, Mapping, Tuple
+from typing import List, Mapping, Tuple
 
-from hannibal.io.DBF import load_dbf
+from hannibal.io.shapefile import FeatureLike
 from hannibal.logging import LOGGER
 from hannibal.providers import HannibalProvider
 from hannibal.providers.SEVAS.constants import (
@@ -23,9 +21,9 @@ from hannibal.providers.SEVAS.constants import (
     SEVASDir,
     SEVASRestrType,
 )
+from hannibal.providers.SEVAS.tables.base import SEVASBaseRecord, SEVASBaseTable
 from hannibal.util.data import bool_to_str, str_to_bool
 from hannibal.util.exception import HannibalSchemaError
-from hannibal.util.immutable import ImmutableMixin
 
 
 class SEVASGroupedDays(str, Enum):
@@ -48,25 +46,8 @@ KEY_FROM_TYPE = {
 }
 
 
-def SEVASRestrFactory(items: List[Tuple[str, Any]]):
-    """
-    Function passed to DBF loader to create in memory records from DBF records
-    """
-    kwargs = {}
-    vz = {}
-    for k, v in items:
-        if k.startswith("vz_"):
-            vz[RestrVZ(k)] = str_to_bool(v)
-        else:
-            if isinstance(v, str) and len(v) == 0:
-                v = None  # cast empty string to None
-            kwargs[k] = v
-
-    return SEVASRestrRecord(**kwargs, vz=vz)
-
-
 @dataclass
-class SEVASRestrRecord:
+class SEVASRestrRecord(SEVASBaseRecord):
     """
     The SEVAS Restriction class. DBF fields into attributes, so they can be accessed by name.
     The "vz_" flags are stored in their own dictionary.
@@ -81,8 +62,8 @@ class SEVASRestrRecord:
     fahrtri: SEVASDir
     typ: SEVASRestrType
     wert: str | None
-    tage_einzl: str | None
-    tage_grppe: str | None
+    tage_einzl: str
+    tage_grppe: str
     zeit1_von: str | None
     zeit1_bis: str | None
     zeit2_von: str | None
@@ -90,6 +71,7 @@ class SEVASRestrRecord:
     gemeinde: str
     kreis: str
     regbezirk: str
+    shape: List[Tuple[float, float]]
 
     # collect the additional signs in a separate map
     vz: Mapping[RestrVZ, bool]
@@ -167,7 +149,7 @@ class SEVASRestrRecord:
 
         """
         vz = [str(v.value)[3:].replace("_", "-") for v in self.get_vz()]
-        return {"traffic_sign": f"DE:{','.join([str(self.typ), *vz])}"}
+        return {"traffic_sign": f"DE:{','.join([self.typ.value, *vz])}"}
 
     def is_dimensional_type(self) -> bool:
         return self.type in DIMENSIONAL_RESTRICTION_TYPES
@@ -436,19 +418,13 @@ class SEVASRestrRecord:
         value: str = "no"  # default restrictive value
 
         match self.typ:
-            case SEVASRestrType.WEIGHT:
-                if not self.wert:
-                    raise HannibalSchemaError("wert", str(None), HannibalProvider.SEVAS)
-                value = self.reformat_num(self.wert)
-            case SEVASRestrType.HEIGHT:
-                if not self.wert:
-                    raise HannibalSchemaError("wert", str(None), HannibalProvider.SEVAS)
-                value = self.reformat_num(self.wert)
-            case SEVASRestrType.WIDTH:
-                if not self.wert:
-                    raise HannibalSchemaError("wert", str(None), HannibalProvider.SEVAS)
-                value = self.reformat_num(self.wert)
-            case SEVASRestrType.LENGTH:
+            case (
+                SEVASRestrType.WEIGHT
+                | SEVASRestrType.HEIGHT
+                | SEVASRestrType.WIDTH
+                | SEVASRestrType.LENGTH
+                | SEVASRestrType.AXLE_LOAD
+            ):
                 if not self.wert:
                     raise HannibalSchemaError("wert", str(None), HannibalProvider.SEVAS)
                 value = self.reformat_num(self.wert)
@@ -577,69 +553,46 @@ class SEVASRestrRecord:
             return s.replace(",", ".")
         return s
 
+    @staticmethod
+    def invalidating_keys() -> Tuple[str]:
+        return SEVASRestrictions.invalidating_keys()
 
-class SEVASRestrictions(ImmutableMixin):
-    def __init__(self, dbf_path: Path) -> None:
+
+class SEVASRestrictions(SEVASBaseTable):
+    @staticmethod
+    def feature_factory(feature: FeatureLike) -> SEVASRestrRecord:
         """
-        SEVAS restriction map. The DBF's records are read into memory at initialization by default.
-
-        :param dbf: path to the restriction PBF file.
+        Function passed to shapefile loader to create in memory records from DBF records
         """
+        kwargs = {}
+        vz = {}
+        for k, v in feature["properties"].items():
+            if k.startswith("vz_"):
+                vz[RestrVZ(k)] = str_to_bool(v)
+            else:
+                if isinstance(v, str) and len(v) == 0:
+                    v = None  # cast empty string to None
+                if k == "typ":
+                    v = SEVASRestrType(v)
+                if k == "fahrtri":
+                    v = SEVASDir(v)
+                if k == "":
+                    v = SEVASDir(v)
+                kwargs[k] = v
 
-        self._dbf_path = dbf_path
+        kwargs["shape"] = feature["geometry"]["coordinates"]
 
-        # the mapping default value is an empty list
-        self._map: Mapping[int, List[SEVASRestrRecord]] = defaultdict(list)
+        return SEVASRestrRecord(**kwargs, vz=vz)
 
-        # for stats, we keep track of the number of times an OSM ID was accessed
-        self._access_count: Mapping[int, int] = {}
-
-        dbf = load_dbf(dbf_path, SEVASRestrFactory)
-
-        record: SEVASRestrRecord
-
-        for record in dbf.records:
-            self._map[record.osm_id].append(record)
-            self._access_count[record.osm_id] = 0
-
-        self.validate()
-
-    def __getitem__(self, key: int) -> List[SEVASRestrRecord] | None:
-        """
-        Access the internal mapping by OSM ID
-        """
-        if self._access_count.get(key):
-            self._access_count[key] += 1
-        return self._map[key] or None
-
-    def unaccessed_osm_ids(self) -> Generator[int, Any, Any]:
-        for k, v in self._access_count:
-            if v == 0:
-                yield k
-
-    def items(self) -> Generator[Tuple[int, List[SEVASRestrRecord]], Any, Any]:
-        for k, v in self._map.items():
-            yield k, v
-
-    def values(self) -> Generator[List[SEVASRestrRecord], Any, Any]:
-        yield from self._map.values()
-
-    def validate(self) -> bool:
-        """
-        Issue a warning if multiple restrictions for the same way have the same type and are valid
-        in the same direction.
-
-        :return: returns False if multiple restrictions of same type and direction
-            were found for one way,  else True
-        """
-
-        for osm_id, restrs in self.items():
-            types = set()
-            for restr in restrs:
-                if f"{restr.typ}{restr.fahrtri}" in types:
-                    LOGGER.warning(f"Duplicate restriction types for way {osm_id}")
-                    return False
-                else:
-                    types.add(f"{restr.typ}{restr.fahrtri}")
-
-        return True
+    @staticmethod
+    def invalidating_keys() -> Tuple[str]:
+        return (
+            "maxweight",
+            "maxheight",
+            "maxlength",
+            "maxwidth",
+            "maxaxleload",
+            "hazmat",
+            "hgv",
+            "traffic_sign",
+        )

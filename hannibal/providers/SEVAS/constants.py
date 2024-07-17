@@ -13,26 +13,6 @@ class SEVASLayer(str, Enum):
     TRAFFIC_SIGNS = "lkw_schilder_aufstellvorrichtungen"
 
 
-# the OSM tags that should be removed
-# when a given layer will be utilized
-# in order to prevent mixing OSM and SEVAS attributes
-# on the same way
-REMOVE_KEYS = {
-    SEVASLayer.RESTRICTIONS: (
-        "maxweight",
-        "maxheight",
-        "maxlength",
-        "maxwidth",
-        "maxaxleload",
-        "hazmat",
-        "hgv",
-        "traffic_sign",
-    ),
-    SEVASLayer.PREFERRED_ROADS: ("hgv",),
-    SEVASLayer.ROAD_SPEEDS: ("maxspeed", "maxspeed", "zone:traffic", "source:maxspeed"),
-}
-
-
 class SEVASZoneType(str, Enum):
     LEM = "umweltzone"
     SPEED = "tempozone"

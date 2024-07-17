@@ -7,7 +7,7 @@ TEST_LEZ = {3191: {"shape_length": 170, "wert": "1031-52", "typ": "umweltzone"}}
 TEST_LOW_EMISSION_TAGS = {3191: {"type": "boundary", "boundary": "low_emission_zone"}}
 
 
-@pytest.fixture
+@pytest.fixture()
 def sevas_lez():
     return SEVAS_LEZ(LEZ_PATH)
 
@@ -16,8 +16,8 @@ def test_number_of_lez(sevas_lez: SEVAS_LEZ):
     """
     Gets a Restriction table object and tests the number of total low emission zones in there.
     """
-    assert len([p for p in sevas_lez.features()]) == 3
-    assert len([p for p in sevas_lez.features()]) == 3
+    assert len([p for p in sevas_lez.features()]) == 10
+    assert len([p for p in sevas_lez.features()]) == 10
 
 
 @pytest.mark.parametrize("zone_id", TEST_LEZ.keys())

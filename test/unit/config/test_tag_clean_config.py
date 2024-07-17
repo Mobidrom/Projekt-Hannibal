@@ -8,7 +8,7 @@ from shapely.geometry import shape
 from hannibal.config.HannibalConfig import TagCleanConfig
 
 
-@pytest.fixture
+@pytest.fixture()
 def polygon() -> Polygon:
     with open("test/data/test_poly.geojson") as fh:
         f = json.loads(fh.read())

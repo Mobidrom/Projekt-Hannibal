@@ -49,20 +49,16 @@ class SEVASProvider:
         self._in_path = in_path
         self._out_path = out_path
 
-        self._next_node_id = start_node_id
-        self._next_way_id = start_way_id
-        self._next_rel_id = start_rel_id
-
         # download data
         if download_data:
             self._client = SEVASClient(data_path, base_url)
             self._client.get_all()
 
         self._polygons_path = data_path / (SEVASLayer.LOW_EMISSION_ZONES.value + ".shp")
-        self._polygons_segments_path = data_path / (SEVASLayer.ROAD_SPEEDS.value + ".dbf")
-        self._restrictions_path = data_path / (SEVASLayer.RESTRICTIONS.value + ".dbf")
-        self._preferred_roads_path = data_path / (SEVASLayer.PREFERRED_ROADS.value + ".dbf")
-        self._signs_path = data_path / (SEVASLayer.TRAFFIC_SIGNS.value + ".dbf")
+        self._polygons_segments_path = data_path / (SEVASLayer.ROAD_SPEEDS.value + ".shp")
+        self._restrictions_path = data_path / (SEVASLayer.RESTRICTIONS.value + ".shp")
+        self._preferred_roads_path = data_path / (SEVASLayer.PREFERRED_ROADS.value + ".shp")
+        self._signs_path = data_path / (SEVASLayer.TRAFFIC_SIGNS.value + ".shp")
 
         # create mappings OSM_ID -> sevas_records
         # to overwrite tags of existing objects
@@ -91,6 +87,9 @@ class SEVASProvider:
         self._rewriter: OSMRewriter = OSMRewriter(
             in_path,
             out_path,
+            start_node_id,
+            start_way_id,
+            start_rel_id,
             restrictions,
             preferred_roads,
             road_speeds,
@@ -106,9 +105,7 @@ class SEVASProvider:
         self._rewriter.apply_file(self._in_path, locations=True)
 
         # write any new geometries (low emission zones, traffic signs)
-        next_node_id = self._rewriter.write_low_emission_zones(
-            self._next_node_id, self._next_way_id, self._next_rel_id
-        )
+        next_node_id = self._rewriter.write_low_emission_zones()
         self._next_node_id = next_node_id
 
         self._rewriter.close()
@@ -119,13 +116,14 @@ class SEVASProvider:
         print("")
         print("[bold][blue]#__________ Report __________#[/blue][/bold]")
         print("")
-        print("Anzahl hinzugefügter Tags pro Layer")
-        added = dict(self._rewriter._reporter["added"])
-        print(f"\t{added}")
-        print("Anzahl entfernter/überschriebener Tags pro Layer")
-        overridden = dict(self._rewriter._reporter["overridden"])
-        print(f"\t{overridden}")
-        if self._rewriter._tag_clean_config:
-            print(f"Anzahl in {self._rewriter._tag_clean_config.id} entfernter Tags")
-            cleaned = dict(self._rewriter._reporter["cleaned"])
-            print(f"\t{cleaned}")
+        # print("Anzahl hinzugefügter Tags pro Layer")
+        print(dict(self._rewriter._reporter))
+        # added = dict(self._rewriter._reporter["added"])
+        # print(f"\t{added}")
+        # print("Anzahl entfernter/überschriebener Tags pro Layer")
+        # overridden = dict(self._rewriter._reporter["overridden"])
+        # print(f"\t{overridden}")
+        # if self._rewriter._tag_clean_config:
+        #     print(f"Anzahl in {self._rewriter._tag_clean_config.id} entfernter Tags")
+        #     cleaned = dict(self._rewriter._reporter["cleaned"])
+        #     print(f"\t{cleaned}")

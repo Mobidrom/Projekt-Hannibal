@@ -1,71 +1,47 @@
 from collections import defaultdict
-from typing import Mapping, Tuple
+from typing import Dict, List
 
+import shapely.wkb as wkblib
 from osmium import Node, Relation, SimpleHandler, Way
+from osmium.geom import WKBFactory
+from shapely import LineString
 
 
-class TagCounter(SimpleHandler):
-    def __init__(self, tags: Mapping[Tuple[str, str, str], int]) -> None:
+class OSMTestHandler(SimpleHandler):
+    def __init__(self) -> None:
         """
-        A simpler OSM file handler that counts tags passed via the constructor.
-
-        :param tags: a dictionary that maps tags ( object type, tag key **and** value)
-            to their expected occurence.
+        A simpler OSM file handler that counts tags and reads geometries for testing purposes.
         """
         super().__init__()
 
-        self._tags = tags
-        self._counter = defaultdict(int)
+        self._tag_counter = defaultdict(int)
+        self.node_count = 0
+        self.way_count = 0
+        self.relation_count = 0
+        self.way_shapes: Dict[str, List[LineString]] = defaultdict(list)
+        self.wkb_fac = WKBFactory()
 
     def node(self, n: Node):
         self._count_tags(n)
+        self.node_count += 1
 
-    def way(self, w):
+    def way(self, w: Way):
         self._count_tags(w)
+        self.way_count += 1
+
+        self.way_shapes[w.tags["name"]].append(wkblib.loads(self.wkb_fac.create_linestring(w)))
 
     def relation(self, r):
         self._count_tags(r)
+        self.relation_count += 1
 
     def _count_tags(self, o: Node | Way | Relation):
         # node, way, relation
         o_type = o.__class__.__name__.lower()
 
         for tag in o.tags:
-            self._counter[(o_type, tag.k, tag.v)] += 1
+            self._tag_counter[(o_type, tag.k, tag.v)] += 1
 
     @property
     def counter(self):
-        return self._counter
-
-
-class ObjectCounter(SimpleHandler):
-    def __init__(self) -> None:
-        """
-        A simple Handler that counts OSM objects in a file by type (n/w/r).
-        """
-
-        super().__init__()
-        self._nc = 0
-        self._wc = 0
-        self._rc = 0
-
-    @property
-    def node_count(self):
-        return self._nc
-
-    @property
-    def way_count(self):
-        return self._wc
-
-    @property
-    def rel_count(self):
-        return self._rc
-
-    def node(self, n):
-        self._nc += 1
-
-    def way(self, w):
-        self._wc += 1
-
-    def relation(self, r):
-        self._rc += 1
+        return self._tag_counter

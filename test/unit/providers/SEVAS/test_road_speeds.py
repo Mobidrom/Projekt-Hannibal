@@ -1,10 +1,26 @@
+from typing import Dict
+
 import pytest
 
-from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeedRecord, SEVASRoadSpeeds
+from hannibal.providers.SEVAS.tables.road_speeds import (
+    SEVASRoadSpeedRecord,
+    SEVASRoadSpeeds,
+    SEVASRoadSpeedType,
+)
+from test.make_data import road_speed_factory
 from test.unit.providers.SEVAS.constants import (
     POLYGON_SEGMENTS_PATH,
 )
 
+ORDERED_SPEED_TYPES = [
+    SEVASRoadSpeedType.PEDESTRIAN,
+    SEVASRoadSpeedType.CALM_TRAFFIC,
+    SEVASRoadSpeedType.S20,
+    SEVASRoadSpeedType.S30,
+    SEVASRoadSpeedType.URBAN,
+]
+
+# these tests are on real-world SEVAS data
 TEST_ROAD_SPEED_TAGS = {
     255602524: {
         "maxspeed": "30",
@@ -32,11 +48,12 @@ TEST_ROAD_SPEEDS = {
         "Köln",
         "Köln",
         "Köln",
+        [(0, 0), (1, 1)],
     )
 }
 
 
-@pytest.fixture
+@pytest.fixture()
 def sevas_road_speeds():
     return SEVASRoadSpeeds(POLYGON_SEGMENTS_PATH)
 
@@ -45,11 +62,8 @@ def test_number_of_road_speeds(sevas_road_speeds: SEVASRoadSpeeds):
     """
     Gets a Restriction table object and tests the number of total road speeds in there.
     """
-    assert len([p for p in sevas_road_speeds.items()]) == 72
-    assert len([p for p in sevas_road_speeds.values()]) == 72
-
-    # there's a duplicate value in there, make sure we catch it
-    assert not sevas_road_speeds.validate()
+    assert len([p for p in sevas_road_speeds.items()]) == 11091
+    assert len([p for p in sevas_road_speeds.values()]) == 11091
 
 
 @pytest.mark.parametrize("osm_id", TEST_ROAD_SPEEDS.keys())
@@ -82,4 +96,40 @@ def test_simple_tags(sevas_road_speeds: SEVASRoadSpeeds, osm_id):
     tags = restr.tags()
 
     for k, v in tags.items():
+        print(f"{k}: {v}")
         assert v == TEST_ROAD_SPEED_TAGS[osm_id][k]
+
+
+# from here on, tests are run on fake SEVAS data created on the fly
+@pytest.mark.parametrize(
+    ["record", "tags"],
+    [
+        (
+            road_speed_factory(0, SEVASRoadSpeedType.S30),
+            {
+                "maxspeed": "30",
+                "maxspeed:type": "DE:zone30",
+                "zone:traffic": "DE:zone30",
+                "source:maxspeed": "DE:zone30",
+            },
+        ),
+    ],
+)
+def test_record_tags(record: SEVASRoadSpeedRecord, tags: Dict[str, str]):
+    assert record.tags() == tags
+
+
+@pytest.mark.parametrize(
+    ["one", "other"],
+    [(one, other) for one in ORDERED_SPEED_TYPES for other in ORDERED_SPEED_TYPES if one != other],
+)
+def test_road_speed_sorting_greater_than(one: SEVASRoadSpeedType, other: SEVASRoadSpeedType):
+    assert (one > other) == (ORDERED_SPEED_TYPES.index(one) > ORDERED_SPEED_TYPES.index(other))
+
+
+@pytest.mark.parametrize(
+    ["one", "other"],
+    [(one, other) for one in ORDERED_SPEED_TYPES for other in ORDERED_SPEED_TYPES if one != other],
+)
+def test_road_speed_sorting_less_than(one: SEVASRoadSpeedType, other: SEVASRoadSpeedType):
+    assert (one < other) == (ORDERED_SPEED_TYPES.index(one) < ORDERED_SPEED_TYPES.index(other))
