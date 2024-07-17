@@ -1,9 +1,11 @@
-from typing import List, Tuple
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 from hannibal.providers.SEVAS.constants import (
     NO_TAGE_EINZL,
     RestrVZ,
     SEVASDir,
+    SEVASLayer,
     SEVASRestrType,
     SEVASZoneType,
 )
@@ -17,39 +19,37 @@ from test.synthesizers.sevas import SEVASSynthesizer
 
 
 def restriction_factory(
-    segment_id: int,
-    restrkn_id: int,
     osm_id: int,
     fahrtri: SEVASDir,
     typ: SEVASRestrType,
     wert: str,
     tage_einzl: str = NO_TAGE_EINZL,
     tage_grppe: str = "0",
-    zeit1_von: str = "",
-    zeit1_bis: str = "",
-    zeit2_von: str = "",
-    zeit2_bis: str = "",
+    zeit1_von: str | None = None,
+    zeit1_bis: str | None = None,
+    zeit2_von: str | None = None,
+    zeit2_bis: str | None = None,
     shape: List[Tuple[float, float]] = [],
     vz: List[RestrVZ] = [],
 ) -> SEVASRestrRecord:
     return SEVASRestrRecord(
-        segment_id,
-        restrkn_id,
-        "test",
-        osm_id,
-        "version",
-        fahrtri,
-        typ,
-        wert,
-        tage_einzl,
-        tage_grppe,
-        zeit1_von,
-        zeit1_bis,
-        zeit2_von,
-        zeit2_bis,
-        "test",
-        "test",
-        "test",
+        segment_id=0,
+        restrkn_id=0,
+        name="test",
+        osm_id=osm_id,
+        osm_vers="version",
+        fahrtri=fahrtri,
+        typ=typ,
+        wert=wert,
+        tage_einzl=tage_einzl,
+        tage_grppe=tage_grppe,
+        zeit1_von=zeit1_von,
+        zeit1_bis=zeit1_bis,
+        zeit2_von=zeit2_von,
+        zeit2_bis=zeit2_bis,
+        gemeinde="test",
+        kreis="test",
+        regbezirk="test",
         shape=shape,
         vz=SEVASSynthesizer.make_vz(*vz),
     )
@@ -94,72 +94,75 @@ def low_emission_zone_factory(
     )
 
 
-def create_restriction_dataset():
+def make_osm_test_data(
+    ascii_map: str,
+    name: str,
+    nodes: Dict[str, Dict[str, str]] = {},
+    ways: Dict[str, Tuple[int, Dict[str, str]]] = {},
+    relations: List[SynthRelation] = [],
+    grid_size: int = 10,
+    offset_latlng: Tuple[int, int] = (0, 0),
+) -> Tuple[OSMSynthesizer, Path]:
     """
-    Creates a synthetic data set consisting of
-        1. OSM PBF
-        2. SEVAS restrictions that map onto the OSM data
-    """
+    Helper function to create OSM data on the fly.
 
-    path = BASE_DATA_DIR / "restriction_test"
+    :return: the OSM synthesizer instance and the directory
+    """
+    path = BASE_DATA_DIR / name
     path.mkdir(exist_ok=True)
 
-    ascii_map = """
-A---B---C---D---E---F
-|                   |
-|                   |
-|       J---I---H---G
-|       |
-|       |
-W---N---M---K--L----O
-    |   |           |
-    |   |           |
-    V---S----R------P
-"""
+    # clean directory
+    for file in path.glob("*"):
+        file.unlink()
 
-    ways = {
-        "AB": (0, {"highway": "tertiary"}),
-        "BC": (1, {"highway": "tertiary"}),
-        "CD": (2, {"highway": "tertiary"}),
-        "DE": (3, {"highway": "tertiary"}),
-        "EF": (4, {"highway": "tertiary", "maxweight": "3.5"}),
-        "FG": (5, {"highway": "tertiary", "maxweight:hgv": "5"}),
-        "GH": (6, {"highway": "tertiary", "maxwidth": "6", "hazard": "no"}),
-        "HI": (7, {"highway": "tertiary", "maxlength": "1", "hgv": "no"}),
-        "IJ": (8, {"highway": "tertiary"}),
-        "JM": (9, {"highway": "tertiary"}),
-        "MK": (10, {"highway": "tertiary"}),
-        "KL": (11, {"highway": "tertiary"}),
-        "LO": (12, {"highway": "tertiary"}),
-        "OP": (13, {"highway": "tertiary"}),
-        "PR": (14, {"highway": "tertiary"}),
-        "RS": (15, {"highway": "tertiary"}),
-        "SV": (16, {"highway": "tertiary"}),
-        "SM": (17, {"highway": "tertiary"}),
-        "MN": (18, {"highway": "tertiary"}),
-        "VN": (19, {"highway": "tertiary"}),
-        "NW": (20, {"highway": "tertiary"}),
-        "WA": (21, {"highway": "tertiary"}),
-    }
+    s = OSMSynthesizer(
+        ascii_map,
+        nodes=nodes,
+        ways=ways,
+        relations=relations,
+        grid_size=grid_size,
+        offset_lnglat=offset_latlng,
+    )
+    s.to_file(path / "map.pbf")
 
-    s = OSMSynthesizer(ascii_map, ways=ways)
+    return s, path
+
+
+def make_test_data(
+    ascii_map: str,
+    name: str,
+    sevas_features: Dict[
+        SEVASLayer, List[SEVASRestrRecord] | List[SEVASRoadSpeedRecord] | List[SEVASPreferredRoadRecord]
+    ],
+    nodes: Dict[str, Dict[str, str]] = {},
+    ways: Dict[str, Tuple[int, Dict[str, str]]] = {},
+    relations: List[SynthRelation] = [],
+    grid_size: int = 10,
+    offset_latlng: Tuple[int, int] = (0, 0),
+) -> Tuple[OSMSynthesizer, SEVASSynthesizer]:
+    """
+    Helper function to create data on the fly.
+
+    :return: the OSM and SEVAS Synthesizer instances.
+    """
+    path = BASE_DATA_DIR / name
+    path.mkdir(exist_ok=True)
+
+    s = OSMSynthesizer(
+        ascii_map,
+        nodes=nodes,
+        ways=ways,
+        relations=relations,
+        grid_size=grid_size,
+        offset_lnglat=offset_latlng,
+    )
     s.to_file(path / "map.pbf")
     r = SEVASSynthesizer(path)
 
-    restrictions = [
-        restriction_factory(
-            0,
-            0,
-            0,
-            SEVASDir.BOTH,
-            SEVASRestrType.HEIGHT,
-            "7,5",
-            shape=s.way_coordinates("AB"),
-            vz=[RestrVZ.VZ_1020_30],
-        )
-    ]
+    for features in sevas_features.values():
+        r.write_segment_features(features)
 
-    r.write_segment_features(restrictions)
+    return s, r
 
 
 def create_road_speeds_dataset():
@@ -339,7 +342,6 @@ if __name__ == "__main__":
     """
     If this module is called directly, this will create all the fake data sets in test/data/...
     """
-    create_restriction_dataset()
     create_preferred_road_dataset()
     create_low_emission_zone_dataset()
     create_polygon_reader_data()

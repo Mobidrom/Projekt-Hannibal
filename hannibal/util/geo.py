@@ -18,6 +18,13 @@ class Fraction:
         """Start and end fraction"""
         return (self.start, self.end)
 
+    def is_full(self) -> bool:
+        """Whether the fraction is equal to the full length of the original geometry"""
+        return self.start == 0.0 and self.end == 1.0
+
+    def is_valid(self) -> bool:
+        return not (self.start == 1.0 or self.end == 0.0)
+
 
 def get_fraction(linestring: LineString, other: LineString) -> Fraction:
     """

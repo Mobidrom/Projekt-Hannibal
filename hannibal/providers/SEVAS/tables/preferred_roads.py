@@ -40,6 +40,10 @@ class SEVASPreferredRoadRecord(SEVASBaseRecord):
             case _:
                 raise HannibalSchemaError("fahrtri", str(self.fahrtri), HannibalProvider.SEVAS)
 
+    @staticmethod
+    def invalidating_keys() -> Tuple[str]:
+        return SEVASPreferredRoads.invalidating_keys()
+
 
 def SevasPreferredRoadFactory(feature: FeatureLike) -> SEVASPreferredRoadRecord:
     """
@@ -61,5 +65,6 @@ class SEVASPreferredRoads(SEVASBaseTable):
 
         return SEVASPreferredRoadRecord(id_, dir_, feature["geometry"]["coordinates"])
 
-    def invalidating_keys(self) -> Tuple[str]:
+    @staticmethod
+    def invalidating_keys() -> Tuple[str]:
         return ("hgv",)

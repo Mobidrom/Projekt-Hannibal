@@ -1,12 +1,16 @@
+from typing import Dict
+
 import pytest
 
-from hannibal.providers.SEVAS.constants import CommonRestrSignatures
-from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
+from hannibal.providers.SEVAS.constants import CommonRestrSignatures, SEVASDir, SEVASRestrType
+from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions, SEVASRestrRecord
+from test.make_data import restriction_factory
 from test.unit.providers.SEVAS.constants import (
     RESTRICTION_PATH,
     TEST_RESTRICTIONS,
 )
 
+# tests running on real world data
 TEST_HAS_TIME = {4003447: False, 16941331: True, 494470560: False, 415352315: False, 135810076: False}
 
 TEST_RESTRICTION_TAGS = {
@@ -135,3 +139,69 @@ def test_has_time(sevas_restrictions: SEVASRestrictions, osm_id):
     restr = sevas_restrictions[osm_id][0]
 
     assert restr.has_time_case() == TEST_HAS_TIME[osm_id]
+
+
+# testing the record class with made-up data
+
+
+@pytest.mark.parametrize(
+    ["record", "tags"],
+    [
+        (
+            restriction_factory(0, SEVASDir.BOTH, SEVASRestrType.AXLE_LOAD, "8"),
+            {"maxaxleload": "8", "traffic_sign": "DE:263"},
+        ),
+        (
+            restriction_factory(0, SEVASDir.BOTH, SEVASRestrType.LENGTH, "8"),
+            {"maxlength": "8", "traffic_sign": "DE:266"},
+        ),
+        (
+            restriction_factory(0, SEVASDir.FORW, SEVASRestrType.WIDTH, "12,1"),
+            {"maxwidth:forward": "12.1", "traffic_sign": "DE:264"},
+        ),
+        (
+            restriction_factory(0, SEVASDir.BACKW, SEVASRestrType.HGV_NO, ""),
+            {"hgv:backward": "no", "traffic_sign": "DE:253"},
+        ),
+        (
+            restriction_factory(0, SEVASDir.BACKW, SEVASRestrType.HGV_NO, "", "0000011"),
+            {"hgv:backward:conditional": "no @ Sa, Su", "traffic_sign": "DE:253"},
+        ),
+        (
+            restriction_factory(0, SEVASDir.FORW, SEVASRestrType.WIDTH, "2", "1000000"),
+            {"maxwidth:forward:conditional": "2 @ Mo", "traffic_sign": "DE:264"},
+        ),
+        (
+            restriction_factory(0, SEVASDir.FORW, SEVASRestrType.HAZMAT_WATER, "", tage_grppe="1"),
+            {"hazmat:water:forward": "no", "traffic_sign": "DE:269"},
+        ),
+        (
+            restriction_factory(0, SEVASDir.BOTH, SEVASRestrType.HAZMAT_WATER, "", tage_grppe="2"),
+            {"hazmat:water:conditional": "no @ (Mo-Fr)", "traffic_sign": "DE:269"},
+        ),
+        (
+            restriction_factory(0, SEVASDir.BOTH, SEVASRestrType.WEIGHT, "6", tage_grppe="3"),
+            {"maxweight:conditional": "6 @ (Su,PH)", "traffic_sign": "DE:262"},
+        ),
+    ],
+)
+def test_record_tags(record: SEVASRestrRecord, tags: Dict[str, str]):
+    assert record.tags() == tags
+
+
+@pytest.mark.parametrize(
+    ["record"],
+    [
+        (restriction_factory(0, SEVASDir.BACKW, SEVASRestrType.LENGTH, ""),),
+        (restriction_factory(0, SEVASDir.BACKW, SEVASRestrType.WIDTH, ""),),
+        (restriction_factory(0, SEVASDir.BACKW, SEVASRestrType.HEIGHT, ""),),
+        (restriction_factory(0, SEVASDir.BACKW, SEVASRestrType.WEIGHT, ""),),
+        (restriction_factory(0, SEVASDir.BACKW, SEVASRestrType.AXLE_LOAD, ""),),
+        (restriction_factory(0, "invalid_direction", SEVASRestrType.AXLE_LOAD, "4"),),
+        (restriction_factory(0, SEVASDir.BACKW, SEVASRestrType.WEIGHT, "3", "1000000", "1"),),
+    ],
+)
+def test_invalid_restrictions(record: SEVASRestrRecord):
+    """Make sure these throw"""
+    with pytest.raises(Exception):
+        record.tags()

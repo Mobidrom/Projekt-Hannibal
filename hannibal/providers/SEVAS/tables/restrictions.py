@@ -65,8 +65,8 @@ class SEVASRestrRecord(SEVASBaseRecord):
     fahrtri: SEVASDir
     typ: SEVASRestrType
     wert: str | None
-    tage_einzl: str | None
-    tage_grppe: str | None
+    tage_einzl: str
+    tage_grppe: str
     zeit1_von: str | None
     zeit1_bis: str | None
     zeit2_von: str | None
@@ -152,7 +152,7 @@ class SEVASRestrRecord(SEVASBaseRecord):
 
         """
         vz = [str(v.value)[3:].replace("_", "-") for v in self.get_vz()]
-        return {"traffic_sign": f"DE:{','.join([str(self.typ), *vz])}"}
+        return {"traffic_sign": f"DE:{','.join([self.typ.value, *vz])}"}
 
     def is_dimensional_type(self) -> bool:
         return self.type in DIMENSIONAL_RESTRICTION_TYPES
@@ -421,19 +421,13 @@ class SEVASRestrRecord(SEVASBaseRecord):
         value: str = "no"  # default restrictive value
 
         match self.typ:
-            case SEVASRestrType.WEIGHT:
-                if not self.wert:
-                    raise HannibalSchemaError("wert", str(None), HannibalProvider.SEVAS)
-                value = self.reformat_num(self.wert)
-            case SEVASRestrType.HEIGHT:
-                if not self.wert:
-                    raise HannibalSchemaError("wert", str(None), HannibalProvider.SEVAS)
-                value = self.reformat_num(self.wert)
-            case SEVASRestrType.WIDTH:
-                if not self.wert:
-                    raise HannibalSchemaError("wert", str(None), HannibalProvider.SEVAS)
-                value = self.reformat_num(self.wert)
-            case SEVASRestrType.LENGTH:
+            case (
+                SEVASRestrType.WEIGHT
+                | SEVASRestrType.HEIGHT
+                | SEVASRestrType.WIDTH
+                | SEVASRestrType.LENGTH
+                | SEVASRestrType.AXLE_LOAD
+            ):
                 if not self.wert:
                     raise HannibalSchemaError("wert", str(None), HannibalProvider.SEVAS)
                 value = self.reformat_num(self.wert)
@@ -562,6 +556,10 @@ class SEVASRestrRecord(SEVASBaseRecord):
             return s.replace(",", ".")
         return s
 
+    @staticmethod
+    def invalidating_keys() -> Tuple[str]:
+        return SEVASRestrictions.invalidating_keys()
+
 
 class SEVASRestrictions(SEVASBaseTable):
     @staticmethod
@@ -577,13 +575,20 @@ class SEVASRestrictions(SEVASBaseTable):
             else:
                 if isinstance(v, str) and len(v) == 0:
                     v = None  # cast empty string to None
+                if k == "typ":
+                    v = SEVASRestrType(v)
+                if k == "fahrtri":
+                    v = SEVASDir(v)
+                if k == "":
+                    v = SEVASDir(v)
                 kwargs[k] = v
 
         kwargs["shape"] = feature["geometry"]["coordinates"]
 
         return SEVASRestrRecord(**kwargs, vz=vz)
 
-    def invalidating_keys(self) -> Tuple[str]:
+    @staticmethod
+    def invalidating_keys() -> Tuple[str]:
         return (
             "maxweight",
             "maxheight",

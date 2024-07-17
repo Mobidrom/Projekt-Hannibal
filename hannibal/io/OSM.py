@@ -52,6 +52,9 @@ class OSMRewriter(SimpleHandler):
         self,
         in_path: Path,
         out_path: Path,
+        start_node_id: int,
+        start_way_id: int,
+        start_rel_id: int,
         restrictions: SEVASRestrictions | None,
         preferred_roads: SEVASPreferredRoads | None,
         road_speeds: SEVASRoadSpeeds | None,
@@ -95,9 +98,15 @@ class OSMRewriter(SimpleHandler):
         # self._traffic_signs = traffic_signs
 
         self._tag_clean_config = tag_clean_config
-        self._wkb_fac = WKBFactory()
-        # keep some stats
 
+        # for interfacing osmium with shapely
+        self._wkb_fac = WKBFactory()
+
+        self._next_node_id = start_node_id
+        self._next_way_id = start_way_id
+        self._next_rel_id = start_rel_id
+
+        # keep some stats
         self._reporter = dict()
 
         # we categorize the operations that the rewriter performs into
@@ -115,12 +124,31 @@ class OSMRewriter(SimpleHandler):
 
     def merge(self, delete_tmps: bool = True):
         """
-        Merge the node, way and relation files into one
+        Merge the node, way and relation files into one. Calls osmium merge first, then osmium sort.
+        Requires osmium-tools to be installed.
 
         :param delete_tmps: delete the temporary pbfs
         """
 
-        cmd = f"osmium merge --no-progress -O -o {self._out_file} {self._nodes_file} {self._ways_file} {self._rels_file}"  # noqa
+        files_sorted = []
+
+        # insertion of new nodes and ways due to splitting along SEVAS geometries
+        # messes up sort order which is required for osmium merge to work
+        for file in (self._nodes_file, self._ways_file, self._rels_file):
+            file_sorted = file.parent / f"{file.stem}_sorted{file.suffix}"
+            files_sorted.append(file_sorted)
+            sort_cmd = f"osmium sort --no-progress -O -o {file_sorted} {file}"
+            proc = subprocess.Popen(
+                shlex.split(sort_cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            std_out, std_err = proc.communicate()
+            if std_err:  # pragma: no cover
+                LOGGER.critical(std_err)
+                raise subprocess.CalledProcessError(1, sort_cmd, std_out, std_err)
+
+        LOGGER.info("Done sorting OSM files.")
+
+        cmd = f"osmium merge --no-progress -O -o {self._out_file} {' '.join([str(f) for f in files_sorted])}"  # noqa
         LOGGER.info("Start merging with osmium")
         proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -132,7 +160,7 @@ class OSMRewriter(SimpleHandler):
         LOGGER.info(f"Done merging to {self._out_file}")
         if not delete_tmps:
             return
-        for file in (self._nodes_file, self._ways_file, self._rels_file):
+        for file in (self._nodes_file, self._ways_file, self._rels_file, *files_sorted):
             file.unlink()
 
     def node(self, node: Node) -> None:
@@ -178,6 +206,8 @@ class OSMRewriter(SimpleHandler):
         """
         base_tags: Dict[str, str] = dict(way.tags)
         if self._intersects_tag_filter(way):
+            # regardless of whether or not the way will be split, we filter out the tags
+            # that the user wants to remove from the resulting data set
             d = self._filter_tags(base_tags)  # noqa
             # self._merge_reporter_stats(d)
 
@@ -192,97 +222,21 @@ class OSMRewriter(SimpleHandler):
         line = self._wkb_fac.create_linestring(way)
         geom = wkb.loads(line, hex=True)
 
-        # a lookup structure to store tags and their start and end fraction of validity
-        split_tags: Dict[Tuple[float, float], Dict[str, str]] = defaultdict(dict)
+        # a lookup structure to store the features keyed by their validity along the
+        # original way
+        feature_splits: Dict[Tuple[float, float], Type[SEVASBaseRecord]] = dict()
 
         # collect all fractions where the line should be split
         split_points: Dict[float, Point] = dict()
 
         # there is at least one entry, but chances are it covers the whole length of the way,
         # so we don't need to split it.
-        if self._requires_splitting(way.id, geom, split_points, split_tags):
+        if self._requires_splitting(way.id, geom, split_points, feature_splits):
             self._reporter["split"] += 1
+            self._split_way(way, geom, split_points, feature_splits, base_tags)
         else:
             self._reporter["written"] += 1
-
-        return self._write_without_splitting(way, base_tags)
-
-        # if we came down here, the way needs to be split into at least two ways.
-        # for this, we need the fraction along the way geometry for each node,
-        # so we know which nodes belong to which new way.
-
-        # for each layer, we compare the number of tags before and after filtering to report
-        # the number of cleaned tags
-        # if self._restrictions and self._restrictions[way.id]:
-        #     filtered_tags = {
-        #         k: v for k, v in tags.items() if not k.startswith(REMOVE_KEYS[SEVASLayer.RESTRICTIONS])
-        #     }
-        #     self._reporter["overridden"]["restrictions"] += int(len(filtered_tags) != len(tags))
-        #     for restriction in self._restrictions[way.id]:
-        #         frac: Fraction = get_fraction(geom, restriction.geom)
-        #         split_tags[frac.bounds()] = filtered_tags.update(restriction.tags())
-        #         split_points.update(frac.as_dict())
-        #         self._reporter["added"]["restrictions"] += 1
-
-        # if self._preferred_roads and self._preferred_roads[way.id]:
-        #     filtered_tags = {
-        #         k: v
-        #         for k, v in tags.items()
-        #         if not k.startswith(REMOVE_KEYS[SEVASLayer.PREFERRED_ROADS])
-        #     }
-        #     self._reporter["overridden"]["hgv_designated"] += int(len(filtered_tags) != len(tags))
-        #     for preferred_road_segment in self._preferred_roads[way.id]:
-        #         frac: Fraction = get_fraction(geom, preferred_road_segment.geom)
-        #         split_tags[frac.bounds()] = filtered_tags.update(preferred_road_segment.tag())
-        #         split_points.update(frac.as_dict())
-        #         self._reporter["added"]["hgv_designated"] += 1
-
-        # if self._road_speeds and self._road_speeds[way.id]:
-        #     filtered_tags = {
-        #         k: v for k, v in tags.items() if not k.startswith(REMOVE_KEYS[SEVASLayer.ROAD_SPEEDS])
-        #     }
-        #     self._reporter["overridden"]["road_speeds"] += int(len(filtered_tags) != len(tags))
-        #     for road_speed in self._road_speeds[way.id]:
-        #         frac: Fraction = get_fraction(geom, road_speed.geom)
-        #         split_tags[frac.bounds()] = filtered_tags.update(road_speed.tag())
-        #         split_points.update(frac.as_dict())
-        #         self._reporter["added"]["road_speeds"] += 1
-
-        # # split the way into multiple
-        # splits = sorted(split_points.keys())
-
-        # for start, end in pairwise(splits):
-        #     # get all tags valid in this range
-        #     valid_tags = {}
-        #     for (t_start, t_end), tags in split_tags:
-        #         # skip this if no range overlap
-        #         if not (start >= t_start or end <= t_end):
-        #             continue
-
-        #         # there is a range overlap, so apply the tags
-        #         valid_tags.update(tags)
-
-        #     # in many cases, the way will not be split
-        #     if start == 0.0 and end == 1.0:
-        #         mut = way.replace(tags=valid_tags)
-        #         self._ways_writer.add_way(mut)
-        #         return
-
-        #     # ...but sometimes ways need to be split
-        #     start_node: int
-        #     end_node: int
-
-        #     if start == 0.0:
-        #         start_node = way.nodes[0].ref
-        #     else:
-        #         self._create_node()
-        #         start_node = 0
-
-        #     if end == 1.0:
-        #         end_node = way.nodes[len(way.nodes) - 1].ref
-        #     else:
-        #         self._create_node()
-        #         end_node = 0
+            self._write_without_splitting(way, base_tags)
 
     def _has_sevas_data(self, way: Way) -> bool:
         """
@@ -294,6 +248,119 @@ class OSMRewriter(SimpleHandler):
             or (self._preferred_roads and self._preferred_roads[way.id])
             or (self._road_speeds and self._road_speeds[way.id])
         )
+
+    def _split_way(
+        self,
+        way: Way,
+        way_geom: LineString,
+        splits: Dict[float, Point],
+        feature_splits: Dict[Tuple[float, float], Type[SEVASBaseRecord]],
+        tags: Dict[str, str],
+    ):
+        """
+        The way needs to be split into two or more new ways.
+
+        :param way: the OSM Way to be split
+        :param way_geom: the way's geometry
+        :param splits: the splits along the original way (e.g. 0.33 for 33%
+            along the way's length) and the respective point geometries
+        :param feature_splits: the SEVAS features keyed by the splits along which they are valid
+        :param tags: the way's tags (already cleaned of user prescribed keys)
+        """
+
+        nodes = self._get_way_node_splits(way.nodes, way_geom)
+
+        # walk through the splits and update the tags from the split_tags dictionary
+        # where the range overlaps
+
+        last_node_split = 0.0
+        last_node_id = None
+
+        # the splits don't contain the start or end of the original geometry
+        # as these are implicit
+        for split, split_point in splits.items():
+            node_ids = []
+
+            # after the first iteration, the last node should be truthy
+            if last_node_id:
+                node_ids.append(last_node_id)
+            # get the nodes that belong to this fraction
+            split_at_node = False
+            for node_id, node_fraction in nodes.items():
+                # we are only interested in nodes between the last and current split point
+                if node_fraction < last_node_split or node_fraction > split:
+                    continue
+
+                node_ids.append(node_id)
+                # way happens to be split exactly at node
+                if node_fraction == split:
+                    split_at_node = True
+
+            # if there is no node at the split yet, we create it
+            if not split_at_node:
+                self._create_node(self._next_node_id, tuple(*split_point.coords))
+                node_ids.append(self._next_node_id)
+                last_node_id = self._next_node_id
+                self._next_node_id += 1
+
+            # get the features for this split
+            valid_features = self._get_feature_splits(feature_splits, last_node_split, split)
+            valid_tags = dict(tags)
+            for feat in valid_features:
+                # remove keys that collide with SEVAS tags
+                valid_tags = {
+                    k: v for k, v in tags.items() if not k.startswith(feat.invalidating_keys())
+                }
+                # add SEVAS tags
+                valid_tags.update(feat.tags())
+
+            # create the way
+            self._create_way(self._next_way_id, node_ids, valid_tags)
+            self._next_way_id += 1
+
+            # save the last split so we know where we stopped in the next iteration
+            last_node_split = split
+
+        # finally, add the way from the last split to the end of the way
+        node_ids = [last_node_id]
+
+        # get the nodes that belong to this fraction
+        # (at this point no new nodes will be created because the last node will actually be the
+        # original end node)
+        for node_id, node_fraction in nodes.items():
+            # we are only interested in nodes after the last split
+            if node_fraction < last_node_split:
+                continue
+
+            node_ids.append(node_id)
+
+        # get the features for this split
+        valid_features = self._get_feature_splits(feature_splits, last_node_split, 1.0)
+        valid_tags = dict(tags)
+        for feat in valid_features:
+            # remove keys that collide with SEVAS tags
+            valid_tags = {k: v for k, v in tags.items() if not k.startswith(feat.invalidating_keys())}
+            # add SEVAS tags
+            valid_tags.update(feat.tags())
+
+        # create the way
+        self._create_way(self._next_way_id, node_ids, valid_tags)
+        self._next_way_id += 1
+
+    def _get_feature_splits(
+        self, feature_splits: Dict[Tuple[float, float], Type[SEVASBaseRecord]], start: float, end: float
+    ) -> List[Type[SEVASBaseRecord]]:
+        """
+        Retrieves the tags that are valid for the given split from :param start: to :param end: from
+            a mapping {(start, end): feature}.
+        """
+        valid_features: List[Type[SEVASBaseRecord]] = []
+        for frac, feature in feature_splits.items():
+            split_start, split_end = frac
+            if start < split_end and end > split_start:
+                valid_features.append(feature)
+
+        return valid_features
 
     def _write_without_splitting(self, way: Way, base_tags: Dict[str, str]) -> None:
         """
@@ -343,14 +410,14 @@ class OSMRewriter(SimpleHandler):
         way_id: int,
         way_geom: LineString,
         splits: Dict[float, Point],
-        split_tags: Dict[Tuple[float, float], Dict[str, str]],
+        feature_splits: Dict[Tuple[float, float], Type[SEVASBaseRecord]],
     ) -> bool:
         """
         Returns true if the way has any corresponding SEVAS entries that do not match the whole
         length of the way geometry.
 
-        Also, stores the found fractions in :param splits: and the relevant tags in :param split_tags:
-        so we don't have go through them again
+        Also stores the found fractions in :param splits: and the splitting feature in
+        :param feature_splits: so we don't have go through them again in case we need to split
         """
         needs_splitting = False
         for layer in self._get_available_way_layers():
@@ -359,25 +426,31 @@ class OSMRewriter(SimpleHandler):
                 continue
             for feature in layer[way_id]:
                 frac: Fraction = get_fraction(way_geom, feature.geom)
-                if frac.bounds() != FULL_FRACTION:
-                    needs_splitting = True
+                if frac.is_full() or not frac.is_valid():
+                    continue
+
+                needs_splitting = True
+                if frac.start != 0.0:
                     splits[frac.start] = frac.spoint
+
+                if frac.end != 1.0:
                     splits[frac.end] = frac.epoint
-                split_tags[frac.bounds()].update(feature.tags())
+                feature_splits[frac.bounds()] = feature
         return needs_splitting
 
-    def _get_way_fractions(self, nodes: WayNodeList, way_geom: LineString) -> Dict[int, float]:
+    def _get_way_node_splits(self, nodes: WayNodeList, way_geom: LineString) -> Dict[int, float]:
         """
         Calculate the fraction along an OSM Way's geometry for each constituent node.
         """
-        result = {}
-        for node in nodes:
+        result = {nodes[0].ref: 0.0, nodes[len(nodes) - 1].ref: 1.0}
+        for node_id in range(1, len(nodes) - 1):
+            node = nodes[node_id]
             as_wkb = self._wkb_fac.create_point(node.location)
             p = wkb.loads(as_wkb, hex=True)
-            fraction = way_geom.line_locate_point(p, normalized=True)
+            fraction = float(way_geom.line_locate_point(p, normalized=True))
             result[node.ref] = fraction
 
-        return result
+        return dict(sorted(result.items(), key=lambda s: s[1]))
 
     def _copy_way(self, way: Way, tags: Dict[str, str]):
         """
@@ -392,27 +465,6 @@ class OSMRewriter(SimpleHandler):
     def _merge_reporter_stats(self, d: Dict[str, int], type: str = "cleaned") -> None:
         for k, v in d.items():
             self._reporter[type][k] += v
-
-    def _way_nodes(self, line: LineString, nodes: WayNodeList) -> List[Tuple[int, float]]:
-        """
-        Calculates the fraction along an OSM Way for each constituing node.
-
-        :param line: an OSM Way geometry
-        :param nodes: the OSM Way's node list
-
-        Returns a list of tuples containing
-            1) the Node ID
-            2) the Node's fraction (i.e. "percent along") the way
-        """
-
-        fracs = []
-        for node in nodes:
-            geom = self._wkb_fac.create_point(node)
-            p = wkb.loads(geom, hex=True)
-            frac = float(round(line.line_locate_point(p, normalized=True), 2))
-            fracs.append(node.ref, frac)
-
-        return fracs
 
     def relation(self, rel: Relation) -> None:
         """
@@ -445,7 +497,7 @@ class OSMRewriter(SimpleHandler):
         self._ways_writer.close()
         self._rels_writer.close()
 
-    def write_low_emission_zones(self, start_node_id: int, start_way_id: int, start_rel_id: int) -> None:
+    def write_low_emission_zones(self) -> None:
         """
         Create new relations from the low emission zones.
 
@@ -454,30 +506,26 @@ class OSMRewriter(SimpleHandler):
 
         # low emission zones may be None if no lez layer was found
         if not self._low_emission_zones:
-            return start_node_id
-
-        nid = start_node_id
-        wid = start_way_id
-        rid = start_rel_id
+            return
 
         for lez in self._low_emission_zones.features():
             node_list = []
 
             for point in lez.shape[0]:  # inner rings don't make much sense here
-                self._create_node(nid, point)
-                node_list.append(nid)
-                nid += 1
+                self._create_node(self._next_node_id, point)
+                node_list.append(self._next_node_id)
+                self._next_node_id += 1
 
             if not node_list[0] == node_list[len(node_list) - 1]:
                 LOGGER.warning("Found unclosed low emission zone ring, closing it.")
                 node_list.append(node_list[0])
-            self._create_way(wid, node_list)
-            self._create_relation(rid, [wid], {"boundary": "low_emission_zone"})
+            self._create_way(self._next_way_id, node_list)
+            self._create_relation(
+                self._next_rel_id, [self._next_way_id], {"boundary": "low_emission_zone"}
+            )
             # self._reporter["added"]["low_emission_zones"] += 1
-            wid += 1
-            rid += 1
-
-        return nid + 1
+            self._next_way_id += 1
+            self._next_rel_id += 1
 
     def write_traffic_signs(self):
         """

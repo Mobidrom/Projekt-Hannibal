@@ -50,6 +50,8 @@ class SEVASSynthesizer:
         """
         Write segment features (i.e. restrictions, preferred roads and road speeds) to DBF file.
         Expects a list of features of the same type.
+
+        :return: the path the features were written to.
         """
         if not len(features):
             raise ValueError("Feature list cannot be empty")
@@ -76,4 +78,7 @@ class SEVASSynthesizer:
 
         df = gpd.GeoDataFrame.from_features(features).set_crs("epsg:4326")
         path = self._base_dir / layer
-        gpd.GeoDataFrame(df).to_file(path.with_suffix(".shp"))
+        out_path = path.with_suffix(".shp")
+        gpd.GeoDataFrame(df).to_file(out_path)
+
+        return out_path

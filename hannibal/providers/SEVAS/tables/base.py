@@ -34,6 +34,11 @@ class SEVASBaseRecord(ABC):
     def as_dict(self) -> Dict[str, Any]:
         raise NotImplementedError
 
+    @staticmethod
+    @abstractmethod
+    def invalidating_keys() -> Tuple[str]:
+        raise NotImplementedError
+
 
 T = TypeVar("T", bound="SEVASBaseRecord")
 
@@ -99,6 +104,7 @@ class SEVASBaseTable(Generic[T], metaclass=ABCMeta):
     def feature_factory(self):
         raise NotImplementedError
 
+    @staticmethod
     @abstractmethod
-    def invalidating_keys(self) -> Tuple[str]:
+    def invalidating_keys() -> Tuple[str]:
         raise NotImplementedError

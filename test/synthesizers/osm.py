@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from io import StringIO
 from pathlib import Path
-from typing import List, Mapping, Tuple
+from typing import Dict, List, Tuple
 
 from osmium import SimpleWriter
 from osmium.osm.mutable import Node, Relation, Way
@@ -18,13 +18,13 @@ TAG_BASE = {
 
 @dataclass
 class SynthNode:
-    tags: Mapping[str, str] = field(default_factory=dict)
+    tags: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class SynthWay:
     nodes: str
-    tags: Mapping[str, str] = field(default_factory=dict)
+    tags: Dict[str, str] = field(default_factory=dict)
 
 
 class MemberRole(str, Enum):
@@ -49,18 +49,18 @@ class SynthMember:
 class SynthRelation:
     id: int
     members: List[SynthMember]
-    tags: Mapping[str, str] = field(default_factory=dict)
+    tags: Dict[str, str] = field(default_factory=dict)
 
 
 class OSMSynthesizer:
     def __init__(
         self,
         ascii_map: str,
-        nodes: Mapping[str, Mapping[str, str]] = {},
-        ways: Mapping[str, Tuple[int, Mapping[str, str]]] = {},
+        nodes: Dict[str, Dict[str, str]] = {},
+        ways: Dict[str, Tuple[int, Dict[str, str]]] = {},
         relations: List[SynthRelation] = [],
         grid_size: int = 10,
-        offset_latlng: Tuple[int, int] = (0, 0),
+        offset_lnglat: Tuple[int, int] = (0, 0),
     ) -> None:
         """
         A class that helps you create fake OSM data sets!
@@ -78,7 +78,7 @@ class OSMSynthesizer:
         self._ways = ways
         self._relations = relations
         self._grid_size = grid_size
-        self._ll_offset = offset_latlng
+        self._ll_offset = offset_lnglat
         self._nrows = 0
 
         id_ = 0
@@ -89,8 +89,8 @@ class OSMSynthesizer:
 
                 self._nodes[char] = {
                     "coordinates": (
-                        self._ll_offset[0] - y2lat_m(self._grid_size * self._nrows),
-                        self._ll_offset[1] + x2lng_m(self._grid_size * col),
+                        self._ll_offset[0] + x2lng_m(self._grid_size * col),
+                        self._ll_offset[1] - y2lat_m(self._grid_size * self._nrows),
                     ),
                     "id": id_,
                 }
@@ -101,7 +101,7 @@ class OSMSynthesizer:
         """
         Get way coordinates by name.
 
-        :param: the node members concatenated into a string, like "ABC"
+        :param name: the node members concatenated into a string, like "ABC"
         :return: the list of coordinates in lat/lng order
         """
 
@@ -120,7 +120,7 @@ class OSMSynthesizer:
         # start with nodes
         for nname, node in self._nodes.items():
             n = Node(
-                location=(node["coordinates"][1], node["coordinates"][0]),
+                location=node["coordinates"],
                 tags=self._node_tags.get(nname, {}),
                 id=node["id"],
             )
@@ -128,7 +128,7 @@ class OSMSynthesizer:
 
         # then ways
         for wname, (id_, tags) in self._ways.items():
-            w = Way(nodes=[self._nodes[c]["id"] for c in wname], tags=tags, id=id_)
+            w = Way(nodes=[self._nodes[c]["id"] for c in wname], tags={"name": wname, **tags}, id=id_)
             writer.add_way(w)
 
         # then relations

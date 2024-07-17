@@ -12,11 +12,14 @@ from test.util.geo import x2lng_m, y2lat_m
 def convert_coord(
     coord: Tuple[int, int], grid_size: int = 10, offset: Tuple[float, float] = (0, 0)
 ) -> Tuple[float, float]:
-    return offset[0] + y2lat_m(grid_size * coord[0]), offset[1] + x2lng_m(grid_size * coord[1])
+    return offset[0] + x2lng_m(grid_size * coord[0]), offset[1] + y2lat_m(grid_size * coord[1])
 
 
+@pytest.fixture(name="osm_path")
 def get_path():
-    return Path(f"test/data/osm-synth-test-{str(hash(random.random()))[:12]}.pbf")
+    p = Path(f"test/data/osm-synth-test-{str(hash(random.random()))[:12]}.pbf")
+    yield p
+    p.unlink()
 
 
 COMMON_MAP_PARAMS = (
@@ -71,7 +74,7 @@ D--E--F
     ],
 )
 
-OFFSET_GRIDSIZE_PARAMS = (["gridsize", "offset"], [(12, [52.7, 7.8]), (1, [81.34, -137.34])])
+OFFSET_GRIDSIZE_PARAMS = (["gridsize", "offset"], [(12, [7.8, 52.7]), (1, [-137.34, 81.34])])
 
 
 @pytest.mark.parametrize(*COMMON_MAP_PARAMS)
@@ -79,7 +82,7 @@ OFFSET_GRIDSIZE_PARAMS = (["gridsize", "offset"], [(12, [52.7, 7.8]), (1, [81.34
 def test_node_coords(
     ascii_map: str, nodes: Mapping[str, str], gridsize: int, offset: Tuple[float, float]
 ):
-    s = OSMSynthesizer(ascii_map, grid_size=gridsize, offset_latlng=offset)
+    s = OSMSynthesizer(ascii_map, grid_size=gridsize, offset_lnglat=offset)
     assert s._nodes.keys() == nodes.keys()
 
     for k in s._nodes.keys():
@@ -132,6 +135,7 @@ def test_node_coords(
 )
 @pytest.mark.parametrize(*OFFSET_GRIDSIZE_PARAMS)
 def test_object_count(
+    osm_path: Path,
     ascii_map: str,
     nodes: Mapping[str, Mapping[str, str]],
     ways: Mapping[str, Mapping[str, str]],
@@ -141,9 +145,7 @@ def test_object_count(
     osm_obj_counter: Callable,
 ):
     s = OSMSynthesizer(
-        ascii_map, nodes=nodes, ways=ways, relations=relations, grid_size=gridsize, offset_latlng=offset
+        ascii_map, nodes=nodes, ways=ways, relations=relations, grid_size=gridsize, offset_lnglat=offset
     )
-    p = get_path()
-    s.to_file(p)
-    osm_obj_counter(p, node_counter(ascii_map), len(ways.keys()), len(relations))
-    p.unlink()
+    s.to_file(osm_path)
+    osm_obj_counter(osm_path, node_counter(ascii_map), len(ways.keys()), len(relations))

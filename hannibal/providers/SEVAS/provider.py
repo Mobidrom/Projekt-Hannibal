@@ -49,10 +49,6 @@ class SEVASProvider:
         self._in_path = in_path
         self._out_path = out_path
 
-        self._next_node_id = start_node_id
-        self._next_way_id = start_way_id
-        self._next_rel_id = start_rel_id
-
         # download data
         if download_data:
             self._client = SEVASClient(data_path, base_url)
@@ -91,6 +87,9 @@ class SEVASProvider:
         self._rewriter: OSMRewriter = OSMRewriter(
             in_path,
             out_path,
+            start_node_id,
+            start_way_id,
+            start_rel_id,
             restrictions,
             preferred_roads,
             road_speeds,
@@ -106,9 +105,7 @@ class SEVASProvider:
         self._rewriter.apply_file(self._in_path, locations=True)
 
         # write any new geometries (low emission zones, traffic signs)
-        next_node_id = self._rewriter.write_low_emission_zones(
-            self._next_node_id, self._next_way_id, self._next_rel_id
-        )
+        next_node_id = self._rewriter.write_low_emission_zones()
         self._next_node_id = next_node_id
 
         self._rewriter.close()

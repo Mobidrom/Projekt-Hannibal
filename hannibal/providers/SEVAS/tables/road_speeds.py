@@ -109,6 +109,10 @@ class SEVASRoadSpeedRecord(SEVASBaseRecord):
     def get_zone(self) -> str | None:
         return ZONE_VALUES.get(self.wert)
 
+    @staticmethod
+    def invalidating_keys() -> Tuple[str]:
+        return SEVASRoadSpeeds.invalidating_keys()
+
 
 class SEVASRoadSpeeds(SEVASBaseTable):
     def __init__(self, shp_path: Path) -> None:
@@ -137,5 +141,6 @@ class SEVASRoadSpeeds(SEVASBaseTable):
 
         return SEVASRoadSpeedRecord(**kwargs, shape=feature["geometry"]["coordinates"])
 
-    def invalidating_keys(self) -> Tuple[str]:
+    @staticmethod
+    def invalidating_keys() -> Tuple[str]:
         return ("maxspeed", "maxspeed", "zone:traffic", "source:maxspeed")
