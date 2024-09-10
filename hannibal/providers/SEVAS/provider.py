@@ -1,4 +1,6 @@
+from collections import defaultdict
 from pathlib import Path
+from typing import Dict, List
 
 from rich import print
 
@@ -11,6 +13,7 @@ from hannibal.providers.SEVAS.tables.low_emission_zones import SEVAS_LEZ
 from hannibal.providers.SEVAS.tables.preferred_roads import SEVASPreferredRoads
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
 from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeeds
+from hannibal.stats.stats import StatsCategory
 
 # should be fine for another couple of years
 # just increment in case of ID collisions
@@ -116,14 +119,21 @@ class SEVASProvider:
         print("")
         print("[bold][blue]#__________ Report __________#[/blue][/bold]")
         print("")
-        # print("Anzahl hinzugefügter Tags pro Layer")
-        print(dict(self._rewriter._reporter))
-        # added = dict(self._rewriter._reporter["added"])
-        # print(f"\t{added}")
-        # print("Anzahl entfernter/überschriebener Tags pro Layer")
-        # overridden = dict(self._rewriter._reporter["overridden"])
-        # print(f"\t{overridden}")
-        # if self._rewriter._tag_clean_config:
-        #     print(f"Anzahl in {self._rewriter._tag_clean_config.id} entfernter Tags")
-        #     cleaned = dict(self._rewriter._reporter["cleaned"])
-        #     print(f"\t{cleaned}")
+        print("Anzahl hinzugefügter Tags pro Layer")
+        added = dict(self._rewriter._reporter[StatsCategory.ADDED.value])
+        print(f"\t{added}")
+        print("Anzahl durch SEVAS invalidierter Tags pro Layer")
+        overridden = dict(self._rewriter._reporter[StatsCategory.OVERRIDDEN.value])
+        print(f"\t{overridden}")
+        if self._rewriter._tag_clean_config:
+            print(f"Anzahl in relation {self._rewriter._tag_clean_config.id} entfernter Tags")
+            cleaned = dict(self._rewriter._reporter[StatsCategory.REMOVED.value])
+            print(f"\t{cleaned}")
+
+    def unmatched_features(self) -> Dict[str, List[int]]:
+        feats = defaultdict(list)
+        for layer in self._rewriter._get_available_way_layers():
+            for feature in layer.unmatched_features():
+                feats[layer.layer_name].append(feature.segment_id)
+
+        return feats

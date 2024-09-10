@@ -17,6 +17,7 @@ from hannibal.providers.SEVAS.tables.low_emission_zones import SEVAS_LEZ
 from hannibal.providers.SEVAS.tables.preferred_roads import SEVASPreferredRoads
 from hannibal.providers.SEVAS.tables.restrictions import SEVASRestrictions
 from hannibal.providers.SEVAS.tables.road_speeds import SEVASRoadSpeeds
+from hannibal.stats.stats import StatsCategory
 from hannibal.util.geo import Fraction, get_fraction
 
 # it's very unlikely that we'll need to deviate from
@@ -107,20 +108,22 @@ class OSMRewriter(SimpleHandler):
         self._next_rel_id = start_rel_id
 
         # keep some stats
-        self._reporter = dict()
+        self._init_reporter()
 
+    def _init_reporter(self):
+        self._reporter = dict()
         # we categorize the operations that the rewriter performs into
         # the following categories:
-        #  1. adding tags
-        #  2. overriding tags (meaning adding tags where related tags already exist)
-        #  3. cleaning tags (removing tags regardless of whether related tags will be added from SEVAS
-        #     data, but based on the clean_tags config options)
-        # self._reporter["added"] = defaultdict(int)
-        # self._reporter["overridden"] = defaultdict(int)
-        # self._reporter["cleaned"] = defaultdict(int)
-        self._reporter["uninteresting"] = 0
-        self._reporter["written"] = 0
-        self._reporter["split"] = 0
+        #  1. tag-related
+        #     - adding tags (i.e. adding a new tag to a way)
+        #     - overriding tags (i.e. adding tags where related tags already exist)
+        #     - removing tags (i.e. based on the clean_tags config options)
+        #  4. geometry-related
+        #     - splitting a way into multiple ways
+        self._reporter[StatsCategory.ADDED.value] = defaultdict(int)
+        self._reporter[StatsCategory.OVERRIDDEN.value] = defaultdict(int)
+        self._reporter[StatsCategory.REMOVED.value] = defaultdict(int)
+        self._reporter[StatsCategory.SPLIT.value] = 0
 
     def merge(self, delete_tmps: bool = True):
         """
@@ -208,35 +211,58 @@ class OSMRewriter(SimpleHandler):
         if self._intersects_tag_filter(way):
             # regardless of whether or not the way will be split, we filter out the tags
             # that the user wants to remove from the resulting data set
-            d = self._filter_tags(base_tags)  # noqa
-            # self._merge_reporter_stats(d)
+            d = self._filter_tags(base_tags)
+            self._merge_reporter_stats(d)
 
         # first, check whether this is a simple copy operation (true if there are no entries
         # for this OSM ID in any SEVAS layer)
         if not self._has_sevas_data(way):
             self._copy_way(way, base_tags)
-            self._reporter["uninteresting"] += 1
             return
 
-        # get the way line to find out whether the line needs to be split
+        # get the way line geometry to find out whether the line needs to be split
         line = self._wkb_fac.create_linestring(way)
         geom = wkb.loads(line, hex=True)
 
-        # a lookup structure to store the features keyed by their validity along the
+        # a lookup structure to store the sevas features keyed by their validity along the
         # original way
         feature_splits: Dict[Tuple[float, float], Type[SEVASBaseRecord]] = dict()
 
         # collect all fractions where the line should be split
         split_points: Dict[float, Point] = dict()
 
-        # there is at least one entry, but chances are it covers the whole length of the way,
-        # so we don't need to split it.
+        # there is at least one  corresponding SEVAS entry, but chances are it covers the whole length
+        # of the way, so we don't need to split it.
         if self._requires_splitting(way.id, geom, split_points, feature_splits):
-            self._reporter["split"] += 1
+            self._reporter[StatsCategory.SPLIT.value] += 1
             self._split_way(way, geom, split_points, feature_splits, base_tags)
         else:
-            self._reporter["written"] += 1
             self._write_without_splitting(way, base_tags)
+
+    def relation(self, rel: Relation) -> None:
+        """
+        Relation callback executed for every relation in the applied input file.
+        Creates a shallow copy and writes it to the output file buffer.
+
+        If the passed relation represents a low emission zone and the rewriter was passed
+        SEVAS low emission zones, the relation is not copied
+
+        :param relation: an unmutable relation from the input file
+        """
+
+        # TODO: no spatial check for tag filtering implemented at this point,
+        # as relations have an ambiguous geometry type
+
+        if self._low_emission_zones:
+            is_low_emission_zone = any(
+                [True if k == "boundary" and v == "low_emission_zone" else False for k, v in rel.tags]
+            )
+            if is_low_emission_zone:
+                self._reporter[StatsCategory.OVERRIDDEN.value]["low_emission_zones"] += 1
+                return
+
+        mut = rel.replace()
+        self._rels_writer.add_relation(mut)
 
     def _has_sevas_data(self, way: Way) -> bool:
         """
@@ -307,10 +333,19 @@ class OSMRewriter(SimpleHandler):
             valid_features = self._get_feature_splits(feature_splits, last_node_split, split)
             valid_tags = dict(tags)
             for feat in valid_features:
+                new_tags = feat.tags()
+                overridden_tags = []
                 # remove keys that collide with SEVAS tags
-                valid_tags = {
-                    k: v for k, v in tags.items() if not k.startswith(feat.invalidating_keys())
-                }
+                for k in valid_tags.copy().keys():
+                    if k.startswith(feat.invalidating_keys()):
+                        overridden_tags.append(k)
+                        self._reporter[StatsCategory.OVERRIDDEN.value][k] += 1
+                        del valid_tags[k]
+
+                # keep stats
+                for k in new_tags.keys():
+                    if k not in overridden_tags:
+                        self._reporter[StatsCategory.ADDED.value][k] += 1
                 # add SEVAS tags
                 valid_tags.update(feat.tags())
 
@@ -338,8 +373,19 @@ class OSMRewriter(SimpleHandler):
         valid_features = self._get_feature_splits(feature_splits, last_node_split, 1.0)
         valid_tags = dict(tags)
         for feat in valid_features:
+            new_tags = feat.tags()
+            overridden_tags = []
             # remove keys that collide with SEVAS tags
-            valid_tags = {k: v for k, v in tags.items() if not k.startswith(feat.invalidating_keys())}
+            for k in valid_tags.copy().keys():
+                if k.startswith(feat.invalidating_keys()):
+                    overridden_tags.append(k)
+                    self._reporter[StatsCategory.OVERRIDDEN.value][k] += 1
+                    del valid_tags[k]
+
+            # keep stats
+            for k in new_tags.keys():
+                if k not in overridden_tags:
+                    self._reporter[StatsCategory.ADDED.value][k] += 1
             # add SEVAS tags
             valid_tags.update(feat.tags())
 
@@ -377,21 +423,27 @@ class OSMRewriter(SimpleHandler):
             # if there is a weight restriction, it is not sufficient to overwrite the existing
             # tag, because there might be an additional "maxweight:conditional" tag that should
             # also be removed
-            base_tags = {
-                k: v for k, v in base_tags.items() if not k.startswith(layer.invalidating_keys())
-            }
+            overridden_tags: List[str] = []
+            for k in base_tags.copy().keys():
+                if k.startswith(layer.invalidating_keys()):
+                    self._reporter[StatsCategory.OVERRIDDEN.value][k] += 1
+                    overridden_tags.append(k)
+                    del base_tags[k]
 
             # go through each feature and apply the tags.
             # there is a chance that tags from other SEVAS features will be overwritten in the process
-            # but in general, that should only happen in case of badly mapped/illogical SEVAS data
-            #  (e.g. a way is both marked as a preferred road but also prohibits access to HGVs)
+            # but that should only happen in case of illogical SEVAS data
+            # (e.g. a way is both marked as a preferred road but also prohibits access to HGVs)
             feature: SEVASBaseRecord
             if not layer[way.id]:
                 continue
             for feature in layer[way.id]:
-                base_tags.update(feature.tags())
-
-            # TODO: reporter
+                new_tags = feature.tags()
+                for k in new_tags.keys():
+                    if k not in overridden_tags:
+                        # any keys present here that were not in the overridden set are newly added
+                        self._reporter[StatsCategory.ADDED.value][k] += 1
+                base_tags.update(new_tags)
 
         mut = way.replace(tags=base_tags)
         self._ways_writer.add_way(mut)
@@ -462,34 +514,11 @@ class OSMRewriter(SimpleHandler):
         mut = way.replace(tags=tags)
         self._ways_writer.add_way(mut)
 
-    def _merge_reporter_stats(self, d: Dict[str, int], type: str = "cleaned") -> None:
+    def _merge_reporter_stats(
+        self, d: Dict[str, int], type: StatsCategory = StatsCategory.REMOVED
+    ) -> None:
         for k, v in d.items():
-            self._reporter[type][k] += v
-
-    def relation(self, rel: Relation) -> None:
-        """
-        Relation callback executed for every relation in the applied input file.
-        Creates a shallow copy and writes it to the output file buffer.
-
-        If the passed relation represents a low emission zone and the rewriter was passed
-        SEVAS low emission zones, the relation is not copied
-
-        :param relation: an unmutable relation from the input file
-        """
-
-        # TODO: no spatial check for tag filtering implemented at this point,
-        # as relations have an ambiguous geometry type
-
-        if self._low_emission_zones:
-            is_low_emission_zone = any(
-                [True if k == "boundary" and v == "low_emission_zone" else False for k, v in rel.tags]
-            )
-            if is_low_emission_zone:
-                # self._reporter["overridden"]["low_emission_zones"] += 1
-                return
-
-        mut = rel.replace()
-        self._rels_writer.add_relation(mut)
+            self._reporter[type.value][k] += v
 
     def close(self) -> None:
         """Close the writers."""
@@ -523,7 +552,7 @@ class OSMRewriter(SimpleHandler):
             self._create_relation(
                 self._next_rel_id, [self._next_way_id], {"boundary": "low_emission_zone"}
             )
-            # self._reporter["added"]["low_emission_zones"] += 1
+            self._reporter[StatsCategory.ADDED.value]["low_emission_zones"] += 1
             self._next_way_id += 1
             self._next_rel_id += 1
 
@@ -596,7 +625,6 @@ class OSMRewriter(SimpleHandler):
         elif isinstance(o, Way):
             wkb_string = self._wkb_fac.create_linestring(o)
         else:
-            print(type(o))
             raise ValueError(f"Not supporting intersections for object type {o.__class__.__name__}")
 
         geom = wkb.loads(wkb_string, hex=True)

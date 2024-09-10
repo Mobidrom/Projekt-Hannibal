@@ -68,3 +68,7 @@ class SEVASPreferredRoads(SEVASBaseTable):
     @staticmethod
     def invalidating_keys() -> Tuple[str]:
         return ("hgv",)
+
+    @staticmethod
+    def layer_name() -> str:
+        return "vorrangrouten_segmente"

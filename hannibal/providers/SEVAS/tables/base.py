@@ -76,15 +76,15 @@ class SEVASBaseTable(Generic[T], metaclass=ABCMeta):
             self._access_count[key] += 1
         return self._map[key] or None
 
-    def unaccessed_features(self) -> Generator[int, Any, Any]:
+    def unmatched_features(self) -> Generator[T, Any, Any]:
         """
-        Returns the number of features that were not accessed during the conversion.
+        Returns the features that were not matched to a way ID during the conversion.
         Mostly interesting for full conversions, where the input OSM file was not bound to
         a subregion.
         """
         for k, v in self._access_count:
             if v == 0:
-                yield k
+                yield self._map[k]
 
     def items(self) -> Generator[Tuple[int, List[T]], Any, Any]:
         """
@@ -102,6 +102,11 @@ class SEVASBaseTable(Generic[T], metaclass=ABCMeta):
     @property
     @abstractmethod
     def feature_factory(self):
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def layer_name(self):
         raise NotImplementedError
 
     @staticmethod

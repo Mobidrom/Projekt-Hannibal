@@ -596,3 +596,7 @@ class SEVASRestrictions(SEVASBaseTable):
             "hgv",
             "traffic_sign",
         )
+
+    @staticmethod
+    def layer_name() -> str:
+        return "restriktionen_segmente"

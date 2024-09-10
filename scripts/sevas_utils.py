@@ -61,6 +61,10 @@ def convert(
         str, typer.Option(help="Die Tags, die herausgefiltert werden sollen (durch Kommata separiert)")
     ] = "",
     log_level: Annotated[LogLevel, typer.Option(help="Logging level")] = LogLevel.WARN,
+    collect_unmatched_features: Annotated[
+        bool,
+        typer.Option(help="Sollen Segmente, die nicht gematched werden konnten, ausgegeben werden?"),
+    ] = False,
 ):
     """
     Konvertierung von SEVAS zu OSM.
@@ -82,6 +86,13 @@ def convert(
     provider = SEVASProvider(osm_in, osm_out, base_url, data_dir, False, tag_clean_config=t)
     provider.process()
     provider.report()
+
+    if collect_unmatched_features:
+        print("Ungematchte Segmente:")
+        for k, v in provider.unmatched_features():
+            print(f"{k}:")
+            for id_ in v:
+                print(id_)
 
 
 @app.command()

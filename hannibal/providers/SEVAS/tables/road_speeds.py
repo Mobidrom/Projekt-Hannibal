@@ -123,8 +123,6 @@ class SEVASRoadSpeeds(SEVASBaseTable[SEVASRoadSpeedRecord]):
         for feature_list in self._map.values():
             feature_list.sort(key=lambda f: f.wert, reverse=True)
 
-            print([f.wert for f in feature_list])
-
     @staticmethod
     def feature_factory(feature: FeatureLike) -> SEVASRoadSpeedRecord:
         """
@@ -150,3 +148,7 @@ class SEVASRoadSpeeds(SEVASBaseTable[SEVASRoadSpeedRecord]):
     @staticmethod
     def invalidating_keys() -> Tuple[str]:
         return ("maxspeed", "maxspeed", "zone:traffic", "source:maxspeed")
+
+    @staticmethod
+    def layer_name() -> str:
+        return "tempozonen_segmente"
