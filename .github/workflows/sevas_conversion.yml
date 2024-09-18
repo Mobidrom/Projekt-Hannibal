@@ -19,15 +19,34 @@ on:
         description: "OSM ID einer Relation, die eine Fläche darstellt. Wenn angegeben, werden innerhalb dieser Fläche alle Tags mit in 'clean_tags' angegebenen Keys entfernt"
         required: false
         default: "-1"
+      file_name:
+        description: "Name der finalen OSM PBF Datei (ohne Endung)"
+        required: false
+        default: "sevas"
 
 jobs:
   convert:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python_version: ["3.12"]
     steps:
       - uses: actions/checkout@v3
+
+      - name: Obtain OSM file checksum
+        id: obtain_checksum
+        run: |
+          CHECKSUM_URL=${{ inputs.osm_url }}.md5
+          if [[ $(curl -fs $CHECKSUM_URL) ]]; then
+            echo "checksum=$(curl -s $CHECKSUM_URL | awk '{print $1"-"$2}')" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/cache@v3
+        name: Cache OSM File
+        id: cache-osm-file
+        with:
+          path: ~/.osm_source
+          key: osm-checksum-${{ steps.obtain_checksum.outputs.checksum }}
 
       - name: Set up Python ${{ matrix.python_version }}
         uses: actions/setup-python@v4
@@ -35,7 +54,7 @@ jobs:
           python-version: ${{ matrix.python_version }}
           cache: pip
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -47,10 +66,18 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
+          name: Cache virtual env
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Download OSM File
+        if: steps.cache-osm-file.outputs.cache-hit != 'true'
+        run: |
+          mkdir ~/.osm_source
+          echo ${{ inputs.osm_url }}
+          curl -sfo ~/.osm_source/source.pbf ${{ inputs.osm_url }}
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
@@ -63,8 +90,8 @@ jobs:
           source .venv/bin/activate
           mkdir sevas_data
 
-          sevas_utils download sevas_data ${{ github.event.inputs.sevas_url }} 
-          sevas_utils convert sevas_data test/data/koeln.pbf sevas_konvertiert.pbf --clean-tags "${{ github.events.inputs.clean_tags }}"  --clean-area "${{ github.event.inputs.clean_area }}"
+          sevas_utils download sevas_data ${{ inputs.sevas_url }} 
+          sevas_utils convert sevas_data ~/.osm_source/source.pbf ${{ inputs.file_name }}.pbf --clean-tags "${{ inputs.clean_tags }}"  --clean-area "${{ inputs.clean_area }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -72,4 +99,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sevas-osm
-          path: sevas_konvertiert.pbf
+          path: ${{ inputs.file_name }}.pbf
