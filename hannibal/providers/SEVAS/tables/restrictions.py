@@ -545,10 +545,12 @@ class SEVASRestrRecord(SEVASBaseRecord):
         return f"{days}{' ' if len(days) else ''}{','.join(times)}"
 
     @staticmethod
-    def reformat_num(s: str):
+    def reformat_num(s: str | None):
         """
         Replaces commas with periods in strings that represent floating point numbers.
         """
+        if s is None:
+            return s
         if "," in s:
             return s.replace(",", ".")
         return s
