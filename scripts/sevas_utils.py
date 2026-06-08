@@ -104,5 +104,10 @@ def get_polygon(
     r.apply_file(str(path), locations=True, idx="flex_mem")
     print(r.geometry.geoms[0])
 
-if __name__ == "__main__":
+
+def main():
     app()
+
+
+if __name__ == "__main__":
+    main()

@@ -31,6 +31,8 @@ class RestrVZ(str, Enum):
     VZ_1010_57 = "vz_1010_57"
     # specifier HGV with trailer
     VZ_1010_60 = "vz_1010_60"
+    # bike + exemptor destination
+    VZ_1020_12 = "vz_1020_12"
     # exemptor destination
     VZ_1020_30 = "vz_1020_30"
     # exemptor HGV
@@ -74,8 +76,12 @@ class RestrVZ(str, Enum):
 
 
 class SEVASRestrType(str, Enum):
+    BICYCLE_ROAD = "244.1"  # TODO Unused
+    VEHICLE_NO = "250"  # TODO Unused
+    MOTORCAR_NO = "251"  # TODO Unused
     HGV_NO = "253"
     HGV_TRAILER = "257-57"
+    MOTORCAR_MOTORCYCLE_NO = "260"  # TODO Unused
     HAZMAT = "261"
     WEIGHT = "262"
     AXLE_LOAD = "263"
@@ -89,6 +95,7 @@ TRAFFIC_MODES = {
     RestrVZ.VZ_1010_51: ["hgv"],
     RestrVZ.VZ_1010_57: ["bus"],
     RestrVZ.VZ_1010_60: ["hgv:trailer"],
+    RestrVZ.VZ_1020_12: ["destination"],
     RestrVZ.VZ_1020_30: ["destination"],
     RestrVZ.VZ_1024_12: ["hgv"],
     RestrVZ.VZ_1024_13: ["hgv", "trailer"],
@@ -153,8 +160,12 @@ class CommonRestrSignatures(str, Enum):
 
 
 PERMISSIVE_VALUES = {
+    SEVASRestrType.BICYCLE_ROAD: "yes",  # TODO
+    SEVASRestrType.VEHICLE_NO: "yes",  # TODO
+    SEVASRestrType.MOTORCAR_NO: "yes",  # TODO
     SEVASRestrType.HGV_NO: "yes",
     SEVASRestrType.HGV_TRAILER: "yes",
+    SEVASRestrType.MOTORCAR_MOTORCYCLE_NO: "yes",  # TODO
     SEVASRestrType.HAZMAT: "yes",
     SEVASRestrType.WEIGHT: "none",
     SEVASRestrType.AXLE_LOAD: "none",
@@ -167,6 +178,7 @@ PERMISSIVE_VALUES = {
 # these can be combined with each other pretty much
 # any way
 EXEMPTORS = [
+    RestrVZ.VZ_1020_12,
     RestrVZ.VZ_1020_30,
     RestrVZ.VZ_1024_12,
     RestrVZ.VZ_1024_13,

@@ -10,23 +10,22 @@ Der Projektname verweist auf den karthagischen Feldherr Hannibal, der mit Elefan
 <img src="https://github.com/Mobidrom/Projekt-Hannibal/assets/30908795/3e0e05fd-9ec0-403f-8a03-a6af84364d4d" width="500"/>
 </p>
 
+### Requirements
+
+- Python >= 3.14
+- [uv](https://docs.astral.sh/uv/)
+- `libgdal-dev` Required to build package `fiona`
+- `osmium-tool` Required to merge and modify OSM files
+
 ### Installation
-
-Benötigt werden:
-
-- Python >= 3.10
-- Poetry
-- Osmium Tool um OSM Dateien zusammenzuführen
 
 ```bash
 git clone git@github.com:Mobidrom/Projekt-Hannibal.git
 cd Projekt-Hannibal
-python -m venv --prompt hannibal .venv
-source .venv/bin/activate
-poetry install
+uv sync
 ```
 
-Poetry installiert folgende Aliasse in der Shell:
+Das Repository enthält folgende Tools, Skripte / Tools, die über `uv run` ausgeführt werden können:
 
 - sevas_utils: kann verwendet werden um SEVAS Daten herunterzuladen, zu inspizieren, und zu konvertieren
 - hannibal: der zentrale Entrypoint zum Orchestrieren komplexer Konversionen (mehr folgt)
@@ -36,7 +35,7 @@ Poetry installiert folgende Aliasse in der Shell:
 Von Bedeutung ist gerade erst einmal das `sevas_utils` executable mit den commands `download` und `convert`:
 
 ```
-❯ sevas_utils download --help
+❯ uv run sevas_utils download --help
 
  Usage: sevas_utils download [OPTIONS] DATA_DIR [BASE_URL]
 
@@ -53,7 +52,7 @@ Von Bedeutung ist gerade erst einmal das `sevas_utils` executable mit den comman
 ```
 
 ```
-❯ sevas_utils convert --help
+❯ uv run sevas_utils convert --help
 
  Usage: sevas_utils convert [OPTIONS] DATA_DIR OSM_IN OSM_OUT
                             [BASE_URL]
@@ -88,9 +87,9 @@ Eine Konvertierung für NRW könnte daher etwa so aussehen:
 
 ```bash
 mkdir sevas_data
-sevas_utils download sevas_data
+uv run sevas_utils download sevas_data
 wget http://download.geofabrik.de/europe/germany/nordrhein-westfalen-latest.osm.pbf -O sevas_data/nrw.pbf
-sevas_utils convert sevas_data sevas_data/nrw.pbf sevas_data/nrw_sevas.pbf
+uv run sevas_utils convert sevas_data sevas_data/nrw.pbf sevas_data/nrw_sevas.pbf
 ```
 
 ### Tests
@@ -98,8 +97,7 @@ sevas_utils convert sevas_data sevas_data/nrw.pbf sevas_data/nrw_sevas.pbf
 Getestet wird mit `pytest`, das Starten der Test Suite könnte nicht einfacher sein:
 
 ```
-source .venv/bin/activate
-pytest
+uv run pytest
 ```
 
 #### Testdaten
@@ -110,3 +108,28 @@ Dies geschieht unter anderem mithilfe von kleinen ASCII-"Karten" (inspiriert dur
 
 Foto von © José Luiz Bernardes Ribeiro, CC BY-SA 4.0  
 https://commons.wikimedia.org/w/index.php?curid=53809379
+
+### Troubleshooting
+
+#### Update dependencies
+Use `uv lock` to update `uv.lock`
+Then run `uv sync` to update the installed packages.
+_Note: As `uv sync` will update the lockfile as well, running `uv sync` might be sufficient._
+
+#### `No such file or directory: 'gdal-config'`
+Ensure `libgdal-dev` is installed
+
+#### `No such file or directory: 'osmium'`
+Ensure `osmium-tool` is installed
+
+#### Global installation
+**TODO** Missing dependencies
+
+* Run `uv tool install .` to install the package with some dependencies
+* Use `sevas_utils` to run the `sevas_utils` script
+
+Not working:
+
+* Some dependencies will not be installed, e.g. `shapely`
+* The `hannibal` command will not work, as `cli.py` will not be installed
+

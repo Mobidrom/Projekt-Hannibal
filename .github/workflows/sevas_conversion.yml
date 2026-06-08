@@ -6,7 +6,7 @@ on:
       osm_url:
         description: "URL zu einer OSM PBF Datei, z. B. http://download.geofabrik.de/europe/germany/nordrhein-westfalen-latest.osm.pbf"
         required: true
-        default: "http://download.geofabrik.de/europe/germany/nordrhein-westfalen-latest.osm.pbf"
+        default: "https://download.geofabrik.de/europe/germany/nordrhein-westfalen-latest.osm.pbf"
       sevas_url:
         description: "URL zum SEVAS WFS Client"
         required: true
@@ -27,9 +27,6 @@ on:
 jobs:
   convert:
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python_version: ["3.12"]
     steps:
       - uses: actions/checkout@v3
 
@@ -37,8 +34,8 @@ jobs:
         id: obtain_checksum
         run: |
           CHECKSUM_URL=${{ inputs.osm_url }}.md5
-          if [[ $(curl -fs $CHECKSUM_URL) ]]; then
-            echo "checksum=$(curl -s $CHECKSUM_URL | awk '{print $1"-"$2}')" >> $GITHUB_OUTPUT
+          if data="$(curl -fsL $CHECKSUM_URL)"; then
+            echo "checksum=$(echo "${data}" | awk '{print $1"-"$2}')" >> $GITHUB_OUTPUT
           fi
 
       - uses: actions/cache@v3
@@ -48,55 +45,45 @@ jobs:
           path: ~/.osm_source
           key: osm-checksum-${{ steps.obtain_checksum.outputs.checksum }}
 
-      - name: Set up Python ${{ matrix.python_version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python_version }}
-          cache: pip
+      - name: Install required packages
+        run: |
+          sudo apt-get update --yes
+          sudo apt-get install --yes --quiet libgdal-dev osmium-tool
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # TODO Still used?
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-
-      - uses: actions/cache@v4
-        with:
-          name: Cache virtual env
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Download OSM File
         if: steps.cache-osm-file.outputs.cache-hit != 'true'
         run: |
           mkdir ~/.osm_source
           echo ${{ inputs.osm_url }}
-          curl -sfo ~/.osm_source/source.pbf ${{ inputs.osm_url }}
-
-      - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction
-
-      - name: Install Osmium
-        run: |
-          sudo apt update --yes
-          sudo apt install --yes --quiet osmium-tool
+          curl -sfLo ~/.osm_source/source.pbf ${{ inputs.osm_url }}
 
       - name: SEVAS Konversion
         run: |
-          source .venv/bin/activate
           mkdir sevas_data
 
-          sevas_utils download sevas_data ${{ inputs.sevas_url }} 
-          sevas_utils convert sevas_data ~/.osm_source/source.pbf ${{ inputs.file_name }}.pbf --clean-tags "${{ inputs.clean_tags }}"  --clean-area "${{ inputs.clean_area }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          uv run sevas_utils download sevas_data ${{ inputs.sevas_url }}
+          uv run sevas_utils convert sevas_data ~/.osm_source/source.pbf ${{ inputs.file_name }}.pbf --clean-tags "${{ inputs.clean_tags }}"  --clean-area "${{ inputs.clean_area }}"
+        # env:
+        #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Archiviere konvertierte OSM Datei
         uses: actions/upload-artifact@v4

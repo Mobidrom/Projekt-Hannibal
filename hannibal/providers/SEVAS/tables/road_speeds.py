@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Mapping, Tuple
 
 from hannibal.io.shapefile import FeatureLike
-from hannibal.providers.SEVAS.constants import SEVASZoneType
+from hannibal.providers.SEVAS.constants import SEVASDir, SEVASZoneType
 from hannibal.providers.SEVAS.tables.base import SEVASBaseRecord, SEVASBaseTable
 
 
@@ -20,6 +20,8 @@ class SEVASRoadSpeedType(str, Enum):
     CALM_TRAFFIC = "325.1"
     # tempo 20
     S20 = "274.1-20"
+    # fahrradzone start
+    BICYCLE_ZONE_START = "244.3"  # TODO
     # tempo 30
     S30 = "274.1"
     # geschlossene Ortschaft
@@ -47,6 +49,7 @@ SPEED_VALUES = {
     SEVASRoadSpeedType.PEDESTRIAN: "10",
     SEVASRoadSpeedType.CALM_TRAFFIC: "10",
     SEVASRoadSpeedType.S20: "20",
+    SEVASRoadSpeedType.BICYCLE_ZONE_START: "30",
     SEVASRoadSpeedType.S30: "30",
     SEVASRoadSpeedType.URBAN: "50",
 }
@@ -73,6 +76,7 @@ class SEVASRoadSpeedRecord(SEVASBaseRecord):
     kreis: str
     regbezirk: str
     shape: List[Tuple[float, float]]
+    fahrtri: SEVASDir = SEVASDir.BOTH  # TODO Unused
 
     def as_dict(self) -> Mapping[str, str | int]:
         """
@@ -139,8 +143,10 @@ class SEVASRoadSpeeds(SEVASBaseTable[SEVASRoadSpeedRecord]):
                 if v == "umweltzone":
                     return None
                 v = SEVASZoneType.SPEED
-            if k == "wert":
+            elif k == "wert":
                 v = SEVASRoadSpeedType(v)
+            elif k == "fahrtri":
+                v = SEVASDir(v)
             kwargs[k] = v
 
         return SEVASRoadSpeedRecord(**kwargs, shape=feature["geometry"]["coordinates"])

@@ -2,8 +2,9 @@ from collections import defaultdict
 from typing import Dict, List
 
 import shapely.wkb as wkblib
-from osmium import Node, Relation, SimpleHandler, Way
+from osmium import SimpleHandler
 from osmium.geom import WKBFactory
+from osmium.osm import Node, Relation, Way
 from shapely import LineString
 
 

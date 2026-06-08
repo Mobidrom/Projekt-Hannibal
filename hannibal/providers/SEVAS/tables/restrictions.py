@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Mapping, Tuple
+from typing import List, Mapping, Tuple, override
 
 from hannibal.io.shapefile import FeatureLike
 from hannibal.logging import LOGGER
@@ -34,7 +34,11 @@ class SEVASGroupedDays(str, Enum):
 
 
 KEY_FROM_TYPE = {
+    SEVASRestrType.BICYCLE_ROAD: "bicycle_road",  # TODO
+    SEVASRestrType.VEHICLE_NO: "vehicle",  # TODO
+    SEVASRestrType.MOTORCAR_NO: "motorcar",  # TODO
     SEVASRestrType.HGV_NO: "hgv",
+    SEVASRestrType.MOTORCAR_MOTORCYCLE_NO: "motor_vehicle",  # TODO
     SEVASRestrType.WEIGHT: "maxweight",
     SEVASRestrType.HEIGHT: "maxheight",
     SEVASRestrType.LENGTH: "maxlength",
@@ -562,6 +566,7 @@ class SEVASRestrRecord(SEVASBaseRecord):
 
 class SEVASRestrictions(SEVASBaseTable):
     @staticmethod
+    @override
     def feature_factory(feature: FeatureLike) -> SEVASRestrRecord:
         """
         Function passed to shapefile loader to create in memory records from DBF records
@@ -576,9 +581,9 @@ class SEVASRestrictions(SEVASBaseTable):
                     v = None  # cast empty string to None
                 if k == "typ":
                     v = SEVASRestrType(v)
-                if k == "fahrtri":
+                elif k == "fahrtri":
                     v = SEVASDir(v)
-                if k == "":
+                elif k == "":
                     v = SEVASDir(v)
                 kwargs[k] = v
 

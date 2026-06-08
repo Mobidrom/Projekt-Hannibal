@@ -1,12 +1,11 @@
 from abc import ABC, ABCMeta, abstractmethod
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, Generator, Generic, List, Tuple
+from typing import Any, Dict, Generator, Generic, List, Tuple, TypeVar
 
-from osmium import TypeVar
 from shapely import LineString
 
-from hannibal.io.shapefile import load_shp
+from hannibal.io.shapefile import FeatureLike, load_shp
 
 
 class SEVASBaseRecord(ABC):
@@ -99,9 +98,9 @@ class SEVASBaseTable(Generic[T], metaclass=ABCMeta):
         """
         yield from self._map.values()
 
-    @property
+    @staticmethod
     @abstractmethod
-    def feature_factory(self):
+    def feature_factory(feature: FeatureLike):
         raise NotImplementedError
 
     @property
